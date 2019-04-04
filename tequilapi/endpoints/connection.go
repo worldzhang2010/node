@@ -20,10 +20,12 @@ package endpoints
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	log "github.com/cihub/seelog"
+	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/mysteriumnetwork/node/consumer"
 	"github.com/mysteriumnetwork/node/core/connection"
@@ -107,24 +109,30 @@ type SessionStatisticsTracker interface {
 	GetSessionDuration() time.Duration
 }
 
+type ConnectionStatusClientTracker interface {
+	AddClient(c *websocket.Conn)
+}
+
 // ConnectionEndpoint struct represents /connection resource and it's subresources
 type ConnectionEndpoint struct {
 	manager           connection.Manager
 	ipResolver        ip.Resolver
 	statisticsTracker SessionStatisticsTracker
 	//TODO connection should use concrete proposal from connection params and avoid going to marketplace
-	proposalProvider ProposalProvider
+	proposalProvider              ProposalProvider
+	connectionStatusClientTracker ConnectionStatusClientTracker
 }
 
 const connectionLogPrefix = "[Connection] "
 
 // NewConnectionEndpoint creates and returns connection endpoint
-func NewConnectionEndpoint(manager connection.Manager, ipResolver ip.Resolver, statsKeeper SessionStatisticsTracker, proposalProvider ProposalProvider) *ConnectionEndpoint {
+func NewConnectionEndpoint(manager connection.Manager, ipResolver ip.Resolver, statsKeeper SessionStatisticsTracker, proposalProvider ProposalProvider, connectionStatusClientTracker ConnectionStatusClientTracker) *ConnectionEndpoint {
 	return &ConnectionEndpoint{
-		manager:           manager,
-		ipResolver:        ipResolver,
-		statisticsTracker: statsKeeper,
-		proposalProvider:  proposalProvider,
+		manager:                       manager,
+		ipResolver:                    ipResolver,
+		statisticsTracker:             statsKeeper,
+		proposalProvider:              proposalProvider,
+		connectionStatusClientTracker: connectionStatusClientTracker,
 	}
 }
 
@@ -319,13 +327,14 @@ func (ce *ConnectionEndpoint) GetStatistics(writer http.ResponseWriter, request 
 
 // AddRoutesForConnection adds connections routes to given router
 func AddRoutesForConnection(router *httprouter.Router, manager connection.Manager, ipResolver ip.Resolver,
-	statsKeeper SessionStatisticsTracker, proposalProvider ProposalProvider) {
-	connectionEndpoint := NewConnectionEndpoint(manager, ipResolver, statsKeeper, proposalProvider)
+	statsKeeper SessionStatisticsTracker, proposalProvider ProposalProvider, connectionStatusClientTracker ConnectionStatusClientTracker) {
+	connectionEndpoint := NewConnectionEndpoint(manager, ipResolver, statsKeeper, proposalProvider, connectionStatusClientTracker)
 	router.GET("/connection", connectionEndpoint.Status)
 	router.PUT("/connection", connectionEndpoint.Create)
 	router.DELETE("/connection", connectionEndpoint.Kill)
 	router.GET("/connection/ip", connectionEndpoint.GetIP)
 	router.GET("/connection/statistics", connectionEndpoint.GetStatistics)
+	router.GET("/connection/status", connectionEndpoint.StatusWS)
 }
 
 func toConnectionRequest(req *http.Request) (*connectionRequest, error) {
@@ -367,4 +376,20 @@ func toConnectionResponse(status connection.Status) connectionResponse {
 		response.Proposal = &proposalRes
 	}
 	return response
+}
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+func (ce *ConnectionEndpoint) StatusWS(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		fmt.Println("upgr err", err)
+		// utils.SendError(w, errors.New("Could not open websocket connection"), http.StatusBadRequest)
+		return
+	}
+	ce.connectionStatusClientTracker.AddClient(conn)
 }

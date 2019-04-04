@@ -25,6 +25,7 @@ const (
 	StatisticsEventTopic = "Statistics"
 	// SessionEventTopic represents the session event
 	SessionEventTopic = "Session"
+	StatusEventTopic  = "Connection.Status"
 )
 
 // StateEvent is the struct we'll emit on a StateEvent topic event

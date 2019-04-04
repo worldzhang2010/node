@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/mysteriumnetwork/node/tequilapi/event"
+
 	"github.com/asaskevich/EventBus"
 	log "github.com/cihub/seelog"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -106,6 +108,7 @@ type Dependencies struct {
 	MysteriumAPI         *mysterium.MysteriumAPI
 	MysteriumMorqaClient market_metrics.QualityOracle
 	EtherClient          *ethclient.Client
+	TequilaEventKeeper   *event.EventKeeper
 
 	NATService           nat.NATService
 	Storage              Storage
@@ -162,6 +165,7 @@ func (di *Dependencies) Bootstrap(nodeOptions node.Options) error {
 		return err
 	}
 
+	di.TequilaEventKeeper = event.NewEventKeeper()
 	di.bootstrapIdentityComponents(nodeOptions)
 	di.bootstrapLocationComponents(nodeOptions.Location, nodeOptions.Directories.Config)
 
@@ -278,6 +282,11 @@ func (di *Dependencies) subscribeEventConsumers() error {
 		return err
 	}
 
+	err = di.EventBus.SubscribeAsync(connection.StatusEventTopic, di.TequilaEventKeeper.ConsumeConnectionStateEvent, false)
+	if err != nil {
+		return err
+	}
+
 	// NAT events
 	return di.EventBus.Subscribe(traversal.EventTopic, di.NATTracker.ConsumeNATEvent)
 }
@@ -312,7 +321,7 @@ func (di *Dependencies) bootstrapNodeComponents(nodeOptions node.Options) {
 	router := tequilapi.NewAPIRouter()
 	tequilapi_endpoints.AddRouteForStop(router, utils.SoftKiller(di.Shutdown))
 	tequilapi_endpoints.AddRoutesForIdentities(router, di.IdentityManager)
-	tequilapi_endpoints.AddRoutesForConnection(router, di.ConnectionManager, di.IPResolver, di.StatisticsTracker, di.MysteriumAPI)
+	tequilapi_endpoints.AddRoutesForConnection(router, di.ConnectionManager, di.IPResolver, di.StatisticsTracker, di.MysteriumAPI, di.TequilaEventKeeper)
 	tequilapi_endpoints.AddRoutesForConnectionSessions(router, di.SessionStorage)
 	tequilapi_endpoints.AddRoutesForLocation(router, di.ConnectionManager, di.LocationDetector, di.LocationOriginal)
 	tequilapi_endpoints.AddRoutesForProposals(router, di.MysteriumAPI, di.MysteriumMorqaClient)

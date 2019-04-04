@@ -319,6 +319,8 @@ func (manager *connectionManager) Status() Status {
 func (manager *connectionManager) setStatus(cs Status) {
 	manager.statusLock.Lock()
 	manager.status = cs
+	manager.eventPublisher.Publish(StatusEventTopic, cs)
+
 	manager.statusLock.Unlock()
 }
 
