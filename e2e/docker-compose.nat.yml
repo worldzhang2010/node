@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+  consumer:
+    build:
+      context: docker/router
+    network_mode: none
+    dns: "192.168.1.1"
+    entrypoint: tail -f /dev/null
+
+  router:
+    build:
+      context: docker/router
+    networks:
+      - "global"
+    cap_add:
+      - NET_ADMIN
+
+  external_service:
+    image: ubuntu:18.04
+    networks:
+      - "global"
+    command: tail -f /dev/null
+
+
+  network_setup:
+    build:
+      context: docker/network_setup
+    network_mode: "none"
+    privileged: "true"
+    volumes:
+      - "/proc:/proc"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+networks:
+  global:
