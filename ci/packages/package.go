@@ -132,7 +132,7 @@ func PackageDockerAlpine() error {
 	if err := saveDockerImage("myst:alpine", "build/docker-images/myst_alpine.tgz"); err != nil {
 		return err
 	}
-	return env.IfRelease(storage.UploadDockerImages)
+	return storage.UploadDockerImages()
 }
 
 // PackageDockerUbuntu builds and stores docker ubuntu image
@@ -148,7 +148,7 @@ func PackageDockerUbuntu() error {
 	if err := saveDockerImage("myst:ubuntu", "build/docker-images/myst_ubuntu.tgz"); err != nil {
 		return err
 	}
-	return env.IfRelease(storage.UploadDockerImages)
+	return storage.UploadDockerImages()
 }
 
 // PackageDockerSwaggerRedoc builds and stores docker swagger redoc image

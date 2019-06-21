@@ -46,10 +46,10 @@ func ReleaseDockerSnapshot() error {
 		return err
 	}
 
-	if !env.Bool(env.SnapshotBuild) {
-		log.Info("not a snapshot build, skipping ReleaseSnapshot action...")
-		return nil
-	}
+	//if !env.Bool(env.SnapshotBuild) {
+	//	log.Info("not a snapshot build, skipping ReleaseSnapshot action...")
+	//	return nil
+	//}
 
 	if err := storage.DownloadDockerImages(); err != nil {
 		return errors.Wrap(err, "download docker images")
