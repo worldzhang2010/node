@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	log "github.com/cihub/seelog"
 	"github.com/mysteriumnetwork/node/ci/env"
 	"github.com/mysteriumnetwork/node/ci/storage"
@@ -50,33 +52,33 @@ func ReleaseDockerSnapshot() error {
 	}
 
 	if err := storage.DownloadDockerImages(); err != nil {
-		return err
+		return errors.Wrap(err, "download docker images")
 	}
 
 	if err := dockerLogin(env.Str(env.DockerHubUsername), env.Str(env.DockerHubPassword)); err != nil {
-		return err
+		return errors.Wrap(err, "docker login")
 	}
 	defer dockerLogout()
 
 	dockerImageArchives, err := listDockerImageArchives()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "list docker archives")
 	}
 
 	for _, dockerImageArchive := range dockerImageArchives {
 		log.Info("Restoring from: ", dockerImageArchive)
 		imageName, err := restoreDockerImage(dockerImageArchive)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "restore docker image")
 		}
 		log.Info("Restored image: ", imageName)
 
 		if err := pushDockerImage(imageName, env.Str(env.BuildVersion), mystSnapshotsRepo); err != nil {
-			return err
+			return errors.Wrap(err, "push docker image")
 		}
 
 		if err := removeDockerImage(imageName); err != nil {
-			return err
+			return errors.Wrap(err, "remove docker image")
 		}
 	}
 	return nil
