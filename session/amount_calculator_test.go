@@ -22,13 +22,13 @@ import (
 	"time"
 
 	"github.com/mysteriumnetwork/node/money"
-	"github.com/mysteriumnetwork/node/services/openvpn/discovery/dto"
+	"github.com/mysteriumnetwork/node/session/pingpong/paydef"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_CorrectMoneyValueIsReturnedForTotalAmount(t *testing.T) {
 	aCalc := AmountCalc{
-		PaymentDef: dto.PaymentPerTime{
+		PaymentDef: paydef.PaymentRate{
 			Duration: time.Minute,
 			Price: money.Money{
 				Amount:   100,

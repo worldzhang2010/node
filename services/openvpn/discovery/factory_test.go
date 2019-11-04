@@ -24,6 +24,7 @@ import (
 	"github.com/mysteriumnetwork/node/market"
 	"github.com/mysteriumnetwork/node/money"
 	"github.com/mysteriumnetwork/node/services/openvpn/discovery/dto"
+	"github.com/mysteriumnetwork/node/session/pingpong/paydef"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,9 +56,9 @@ func Test_NewServiceProposalWithLocation(t *testing.T) {
 			},
 
 			PaymentMethodType: "PER_TIME",
-			PaymentMethod: dto.PaymentPerTime{
-				Price:    money.Money{Amount: 12500000, Currency: money.Currency("MYST")},
-				Duration: 60 * time.Minute,
+			PaymentMethod: paydef.PaymentRate{
+				Price:    money.Money{Amount: 100000, Currency: money.Currency("MYST")},
+				Duration: time.Minute,
 			},
 		},
 		proposal,

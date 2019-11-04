@@ -29,7 +29,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/mysteriumnetwork/node/identity"
-	"github.com/mysteriumnetwork/node/services/openvpn/discovery/dto"
+	"github.com/mysteriumnetwork/node/session/pingpong/paydef"
 	"github.com/mysteriumnetwork/payments/crypto"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -99,7 +99,7 @@ type InvoiceTracker struct {
 	invoiceStorage                  providerInvoiceStorage
 	accountantPromiseStorage        accountantPromiseStorage
 	timeTracker                     timeTracker
-	paymentInfo                     dto.PaymentPerTime
+	paymentInfo                     paydef.PaymentRate
 	providerID                      identity.Identity
 	accountantID                    identity.Identity
 	lastInvoice                     lastInvoice
@@ -121,7 +121,7 @@ type InvoiceTrackerDeps struct {
 	ChargePeriod               time.Duration
 	ExchangeMessageChan        chan crypto.ExchangeMessage
 	ExchangeMessageWaitTimeout time.Duration
-	PaymentInfo                dto.PaymentPerTime
+	PaymentInfo                paydef.PaymentRate
 	ProviderID                 identity.Identity
 	AccountantID               identity.Identity
 	AccountantCaller           accountantCaller
@@ -243,7 +243,7 @@ func (it *InvoiceTracker) getNotReceivedExchangeMessageCount() uint64 {
 
 func (it *InvoiceTracker) sendInvoiceExpectExchangeMessage() error {
 	// TODO: this should be calculated according to the passed in payment period
-	shouldBe := uint64(math.Trunc(it.timeTracker.Elapsed().Minutes() * float64(it.paymentInfo.GetPrice().Amount) * 100000000))
+	shouldBe := uint64(math.Trunc(it.timeTracker.Elapsed().Minutes() * float64(it.paymentInfo.GetPrice().Amount)))
 
 	// In case we're sending a first invoice, there might be a big missmatch percentage wise on the consumer side.
 	// This is due to the fact that both payment providers start at different times.
