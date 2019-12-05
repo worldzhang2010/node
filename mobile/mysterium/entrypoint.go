@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/mysteriumnetwork/node/identity/registry"
 	"github.com/pkg/errors"
 
 	"github.com/mitchellh/go-homedir"
@@ -64,6 +65,8 @@ type MobileNode struct {
 	unlockedIdentity               identity.Identity
 	accountant                     identity.Identity
 	feedbackReporter               *feedback.Reporter
+	transactor                     *registry.Transactor
+	identityRegistry               registry.IdentityRegistry
 }
 
 // MobileNetworkOptions alias for node.OptionsNetwork to be visible from mobile framework
@@ -180,6 +183,8 @@ func NewNode(appPath string, logOptions *MobileLogOptions, optionsNetwork *Mobil
 		statisticsTracker:  di.StatisticsTracker,
 		accountant:         identity.FromAddress(metadata.TestnetDefinition.AccountantID),
 		feedbackReporter:   di.Reporter,
+		transactor:         di.Transactor,
+		identityRegistry:   di.IdentityRegistry,
 		proposalsManager: newProposalsManager(
 			di.DiscoveryFinder,
 			di.ProposalStorage,
@@ -307,15 +312,83 @@ func (mb *MobileNode) Disconnect() error {
 	return nil
 }
 
+type UnlockIdentityResponse struct {
+	IdentityAddress string
+}
+
 // UnlockIdentity finds first identity and unlocks it.
 // If there is no identity default one will be created.
-func (mb *MobileNode) UnlockIdentity() (string, error) {
+func (mb *MobileNode) UnlockIdentity() (*UnlockIdentityResponse, error) {
 	var err error
 	mb.unlockedIdentity, err = mb.identitySelector.UseOrCreate("", "")
 	if err != nil {
-		return "", errors.Wrap(err, "could not unlock identity")
+		return nil, errors.Wrap(err, "could not unlock identity")
 	}
-	return mb.unlockedIdentity.Address, nil
+	return &UnlockIdentityResponse{IdentityAddress: mb.unlockedIdentity.Address}, nil
+}
+
+type GetIdentityRegistrationFeesResponse struct {
+	Fee int64
+}
+
+func (mb *MobileNode) GetIdentityRegistrationFees() (*GetIdentityRegistrationFeesResponse, error) {
+	fees, err := mb.transactor.FetchRegistrationFees()
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get registration fees")
+	}
+	return &GetIdentityRegistrationFeesResponse{Fee: int64(fees.Fee)}, nil
+}
+
+type GetIdentityRegistrationStatusRequest struct {
+	IdentityAddress string
+}
+
+type GetIdentityRegistrationStatusResponse struct {
+	Status string
+}
+
+func (mb *MobileNode) GetIdentityRegistrationStatus(req *GetIdentityRegistrationStatusRequest) (*GetIdentityRegistrationStatusResponse, error) {
+	status, err := mb.identityRegistry.GetRegistrationStatus(identity.FromAddress(req.IdentityAddress))
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get identity registration status")
+	}
+	return &GetIdentityRegistrationStatusResponse{Status: status.String()}, nil
+}
+
+type RegisterIdentityRequest struct {
+	IdentityAddress string
+	Fee             int64
+}
+
+func (mb *MobileNode) RegisterIdentity(req *RegisterIdentityRequest) error {
+	err := mb.transactor.RegisterIdentity(req.IdentityAddress, &registry.IdentityRegistrationRequestDTO{
+		Stake:       0,
+		Beneficiary: "",
+		Fee:         uint64(req.Fee),
+	})
+	if err != nil {
+		return errors.Wrap(err, "could not register identity")
+	}
+	return nil
+}
+
+type TopUpRequest struct {
+	IdentityAddress string
+}
+
+func (mb *MobileNode) TopUp(req *TopUpRequest) error {
+	if err := mb.transactor.TopUp(req.IdentityAddress); err != nil {
+		return errors.Wrap(err, "could not top-up balance")
+	}
+	return nil
+}
+
+type GetBalanceResponse struct {
+	Balance int64
+}
+
+func (mb *MobileNode) GetBalance() (*GetBalanceResponse, error) {
+	return &GetBalanceResponse{Balance: 1000_000}, nil
 }
 
 // SendFeedbackRequest represents user feedback request.
