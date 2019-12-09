@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/mysteriumnetwork/node/identity/registry"
+	"github.com/mysteriumnetwork/node/session/pingpong"
 	"github.com/pkg/errors"
 
 	"github.com/mitchellh/go-homedir"
@@ -60,6 +61,7 @@ type MobileNode struct {
 	connectionRegistry             *connection.Registry
 	statisticsTracker              *statistics.SessionStatisticsTracker
 	statisticsChangeCallback       StatisticsChangeCallback
+	balanceChangeCallback          BalanceChangeCallback
 	connectionStatusChangeCallback ConnectionStatusChangeCallback
 	proposalsManager               *proposalsManager
 	unlockedIdentity               identity.Identity
@@ -67,6 +69,7 @@ type MobileNode struct {
 	feedbackReporter               *feedback.Reporter
 	transactor                     *registry.Transactor
 	identityRegistry               registry.IdentityRegistry
+	consumerBalanceTracker         *pingpong.ConsumerBalanceTracker
 }
 
 // MobileNetworkOptions alias for node.OptionsNetwork to be visible from mobile framework
@@ -169,22 +172,23 @@ func NewNode(appPath string, logOptions *MobileLogOptions, optionsNetwork *Mobil
 	}
 
 	mobileNode := &MobileNode{
-		shutdown:           func() error { return di.Shutdown() },
-		node:               di.Node,
-		connectionManager:  di.ConnectionManager,
-		locationResolver:   di.LocationResolver,
-		discoveryFinder:    di.DiscoveryFinder,
-		identitySelector:   di.IdentitySelector,
-		signerFactory:      di.SignerFactory,
-		natPinger:          di.NATPinger,
-		ipResolver:         di.IPResolver,
-		eventBus:           di.EventBus,
-		connectionRegistry: di.ConnectionRegistry,
-		statisticsTracker:  di.StatisticsTracker,
-		accountant:         identity.FromAddress(metadata.TestnetDefinition.AccountantID),
-		feedbackReporter:   di.Reporter,
-		transactor:         di.Transactor,
-		identityRegistry:   di.IdentityRegistry,
+		shutdown:               func() error { return di.Shutdown() },
+		node:                   di.Node,
+		connectionManager:      di.ConnectionManager,
+		locationResolver:       di.LocationResolver,
+		discoveryFinder:        di.DiscoveryFinder,
+		identitySelector:       di.IdentitySelector,
+		signerFactory:          di.SignerFactory,
+		natPinger:              di.NATPinger,
+		ipResolver:             di.IPResolver,
+		eventBus:               di.EventBus,
+		connectionRegistry:     di.ConnectionRegistry,
+		statisticsTracker:      di.StatisticsTracker,
+		accountant:             identity.FromAddress(metadata.TestnetDefinition.AccountantID),
+		feedbackReporter:       di.Reporter,
+		transactor:             di.Transactor,
+		identityRegistry:       di.IdentityRegistry,
+		consumerBalanceTracker: di.ConsumerBalanceTracker,
 		proposalsManager: newProposalsManager(
 			di.DiscoveryFinder,
 			di.ProposalStorage,
@@ -271,6 +275,16 @@ type ConnectionStatusChangeCallback interface {
 // status change.
 func (mb *MobileNode) RegisterConnectionStatusChangeCallback(cb ConnectionStatusChangeCallback) {
 	mb.connectionStatusChangeCallback = cb
+}
+
+// BalanceChangeCallback represents balance change callback.
+type BalanceChangeCallback interface {
+	OnChange(identityAddress string, balance int64)
+}
+
+// BalanceChangeCallback registers callback which is called on identity balance change.
+func (mb *MobileNode) RegisterBalanceChangeCallback(cb BalanceChangeCallback) {
+	mb.balanceChangeCallback = cb
 }
 
 // ConnectRequest represents connect request.
@@ -383,12 +397,17 @@ func (mb *MobileNode) TopUp(req *TopUpRequest) error {
 	return nil
 }
 
+type GetBalanceRequest struct {
+	IdentityAddress string
+}
+
 type GetBalanceResponse struct {
 	Balance int64
 }
 
-func (mb *MobileNode) GetBalance() (*GetBalanceResponse, error) {
-	return &GetBalanceResponse{Balance: 1000_000}, nil
+func (mb *MobileNode) GetBalance(req *GetBalanceRequest) (*GetBalanceResponse, error) {
+	balance := mb.consumerBalanceTracker.GetBalance(identity.FromAddress(req.IdentityAddress))
+	return &GetBalanceResponse{Balance: int64(balance)}, nil
 }
 
 // SendFeedbackRequest represents user feedback request.
@@ -449,19 +468,27 @@ func (mb *MobileNode) OverrideWireguardConnection(wgTunnelSetup WireguardTunnelS
 }
 
 func (mb *MobileNode) handleEvents() {
-	_ = mb.eventBus.Subscribe(connection.StateEventTopic, func(e connection.StateEvent) {
+	_ = mb.eventBus.SubscribeAsync(connection.StateEventTopic, func(e connection.StateEvent) {
 		if mb.connectionStatusChangeCallback == nil {
 			return
 		}
 		mb.connectionStatusChangeCallback.OnChange(string(e.State))
 	})
 
-	_ = mb.eventBus.Subscribe(connection.StatisticsEventTopic, func(e connection.SessionStatsEvent) {
+	_ = mb.eventBus.SubscribeAsync(connection.StatisticsEventTopic, func(e connection.SessionStatsEvent) {
 		if mb.statisticsChangeCallback == nil {
 			return
 		}
 
 		duration := mb.statisticsTracker.GetSessionDuration()
 		mb.statisticsChangeCallback.OnChange(int64(duration.Seconds()), int64(e.Stats.BytesReceived), int64(e.Stats.BytesSent))
+	})
+
+	_ = mb.eventBus.SubscribeAsync(pingpong.BalanceChangedTopic, func(e pingpong.BalanceChangedEvent) {
+		if mb.balanceChangeCallback == nil {
+			return
+		}
+
+		mb.balanceChangeCallback.OnChange(e.Identity.Address, int64(e.Current))
 	})
 }
