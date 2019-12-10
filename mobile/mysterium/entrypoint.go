@@ -49,29 +49,30 @@ import (
 
 // MobileNode represents node object tuned for mobile devices
 type MobileNode struct {
-	shutdown                       func() error
-	node                           *node.Node
-	connectionManager              connection.Manager
-	locationResolver               *location.Cache
-	discoveryFinder                *discovery.Finder
-	identitySelector               selector.Handler
-	signerFactory                  identity.SignerFactory
-	natPinger                      natPinger
-	ipResolver                     ip.Resolver
-	eventBus                       eventbus.EventBus
-	connectionRegistry             *connection.Registry
-	statisticsTracker              *statistics.SessionStatisticsTracker
-	statisticsChangeCallback       StatisticsChangeCallback
-	balanceChangeCallback          BalanceChangeCallback
-	connectionStatusChangeCallback ConnectionStatusChangeCallback
-	proposalsManager               *proposalsManager
-	accountant                     identity.Identity
-	feedbackReporter               *feedback.Reporter
-	transactor                     *registry.Transactor
-	identityRegistry               registry.IdentityRegistry
-	consumerBalanceTracker         *pingpong.ConsumerBalanceTracker
-	registryAddress                string
-	channelImplementationAddress   string
+	shutdown                           func() error
+	node                               *node.Node
+	connectionManager                  connection.Manager
+	locationResolver                   *location.Cache
+	discoveryFinder                    *discovery.Finder
+	identitySelector                   selector.Handler
+	signerFactory                      identity.SignerFactory
+	natPinger                          natPinger
+	ipResolver                         ip.Resolver
+	eventBus                           eventbus.EventBus
+	connectionRegistry                 *connection.Registry
+	statisticsTracker                  *statistics.SessionStatisticsTracker
+	statisticsChangeCallback           StatisticsChangeCallback
+	balanceChangeCallback              BalanceChangeCallback
+	identityRegistrationChangeCallback IdentityRegistrationChangeCallback
+	connectionStatusChangeCallback     ConnectionStatusChangeCallback
+	proposalsManager                   *proposalsManager
+	accountant                         identity.Identity
+	feedbackReporter                   *feedback.Reporter
+	transactor                         *registry.Transactor
+	identityRegistry                   registry.IdentityRegistry
+	consumerBalanceTracker             *pingpong.ConsumerBalanceTracker
+	registryAddress                    string
+	channelImplementationAddress       string
 }
 
 // MobileNetworkOptions alias for node.OptionsNetwork to be visible from mobile framework
@@ -293,6 +294,16 @@ func (mb *MobileNode) RegisterBalanceChangeCallback(cb BalanceChangeCallback) {
 	mb.balanceChangeCallback = cb
 }
 
+// IdentityRegistrationChangeCallback represents identity registration status callback.
+type IdentityRegistrationChangeCallback interface {
+	OnChange(identityAddress string, status string)
+}
+
+// RegisterIdentityRegistrationChangeCallback registers callback which is called on identity registration status change.
+func (mb *MobileNode) RegisterIdentityRegistrationChangeCallback(cb IdentityRegistrationChangeCallback) {
+	mb.identityRegistrationChangeCallback = cb
+}
+
 // ConnectRequest represents connect request.
 type ConnectRequest struct {
 	IdentityAddress   string
@@ -334,9 +345,9 @@ func (mb *MobileNode) Disconnect() error {
 }
 
 type GetIdentityResponse struct {
-	IdentityAddress string
-	ChannelAddress  string
-	Registered      bool
+	IdentityAddress    string
+	ChannelAddress     string
+	RegistrationStatus string
 }
 
 // GetIdentity finds first identity and unlocks it.
@@ -357,12 +368,10 @@ func (mb *MobileNode) GetIdentity() (*GetIdentityResponse, error) {
 		return nil, errors.Wrap(err, "could not get identity registration status")
 	}
 
-	fmt.Println("Identity status", status.String())
-
 	return &GetIdentityResponse{
-		IdentityAddress: unlockedIdentity.Address,
-		ChannelAddress:  channelAddress,
-		Registered:      status == registry.RegisteredConsumer,
+		IdentityAddress:    unlockedIdentity.Address,
+		ChannelAddress:     channelAddress,
+		RegistrationStatus: status.String(),
 	}, nil
 }
 
@@ -499,5 +508,13 @@ func (mb *MobileNode) handleEvents() {
 		}
 
 		mb.balanceChangeCallback.OnChange(e.Identity.Address, int64(e.Current))
+	})
+
+	_ = mb.eventBus.SubscribeAsync(registry.RegistrationEventTopic, func(e registry.RegistrationEventPayload) {
+		if mb.identityRegistrationChangeCallback == nil {
+			return
+		}
+
+		mb.identityRegistrationChangeCallback.OnChange(e.ID.Address, e.Status.String())
 	})
 }
