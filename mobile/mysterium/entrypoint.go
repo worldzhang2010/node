@@ -24,6 +24,7 @@ import (
 
 	"github.com/mysteriumnetwork/node/identity/registry"
 	"github.com/mysteriumnetwork/node/session/pingpong"
+	pc "github.com/mysteriumnetwork/payments/crypto"
 	"github.com/pkg/errors"
 
 	"github.com/mitchellh/go-homedir"
@@ -64,12 +65,13 @@ type MobileNode struct {
 	balanceChangeCallback          BalanceChangeCallback
 	connectionStatusChangeCallback ConnectionStatusChangeCallback
 	proposalsManager               *proposalsManager
-	unlockedIdentity               identity.Identity
 	accountant                     identity.Identity
 	feedbackReporter               *feedback.Reporter
 	transactor                     *registry.Transactor
 	identityRegistry               registry.IdentityRegistry
 	consumerBalanceTracker         *pingpong.ConsumerBalanceTracker
+	registryAddress                string
+	channelImplementationAddress   string
 }
 
 // MobileNetworkOptions alias for node.OptionsNetwork to be visible from mobile framework
@@ -115,7 +117,7 @@ func NewNode(appPath string, logOptions *MobileLogOptions, optionsNetwork *Mobil
 	network := node.OptionsNetwork(*optionsNetwork)
 	log := logconfig.LogOptions(*logOptions)
 
-	err := di.Bootstrap(node.Options{
+	options := node.Options{
 		LogOptions: log,
 		Directories: node.OptionsDirectory{
 			Data:     dataDir,
@@ -166,29 +168,33 @@ func NewNode(appPath string, logOptions *MobileLogOptions, optionsNetwork *Mobil
 			SettlementTimeout:                  time.Hour * 2,
 			MystSCAddress:                      "0xe67e41367c1e17ede951a528b2a8be35c288c787",
 		},
-	})
+	}
+
+	err := di.Bootstrap(options)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not bootstrap dependencies")
 	}
 
 	mobileNode := &MobileNode{
-		shutdown:               func() error { return di.Shutdown() },
-		node:                   di.Node,
-		connectionManager:      di.ConnectionManager,
-		locationResolver:       di.LocationResolver,
-		discoveryFinder:        di.DiscoveryFinder,
-		identitySelector:       di.IdentitySelector,
-		signerFactory:          di.SignerFactory,
-		natPinger:              di.NATPinger,
-		ipResolver:             di.IPResolver,
-		eventBus:               di.EventBus,
-		connectionRegistry:     di.ConnectionRegistry,
-		statisticsTracker:      di.StatisticsTracker,
-		accountant:             identity.FromAddress(metadata.TestnetDefinition.AccountantID),
-		feedbackReporter:       di.Reporter,
-		transactor:             di.Transactor,
-		identityRegistry:       di.IdentityRegistry,
-		consumerBalanceTracker: di.ConsumerBalanceTracker,
+		shutdown:                     func() error { return di.Shutdown() },
+		node:                         di.Node,
+		connectionManager:            di.ConnectionManager,
+		locationResolver:             di.LocationResolver,
+		discoveryFinder:              di.DiscoveryFinder,
+		identitySelector:             di.IdentitySelector,
+		signerFactory:                di.SignerFactory,
+		natPinger:                    di.NATPinger,
+		ipResolver:                   di.IPResolver,
+		eventBus:                     di.EventBus,
+		connectionRegistry:           di.ConnectionRegistry,
+		statisticsTracker:            di.StatisticsTracker,
+		accountant:                   identity.FromAddress(options.Accountant.AccountantID),
+		feedbackReporter:             di.Reporter,
+		transactor:                   di.Transactor,
+		identityRegistry:             di.IdentityRegistry,
+		consumerBalanceTracker:       di.ConsumerBalanceTracker,
+		channelImplementationAddress: options.Transactor.ChannelImplementation,
+		registryAddress:              options.Transactor.RegistryAddress,
 		proposalsManager: newProposalsManager(
 			di.DiscoveryFinder,
 			di.ProposalStorage,
@@ -289,6 +295,7 @@ func (mb *MobileNode) RegisterBalanceChangeCallback(cb BalanceChangeCallback) {
 
 // ConnectRequest represents connect request.
 type ConnectRequest struct {
+	IdentityAddress   string
 	ProviderID        string
 	ServiceType       string
 	DisableKillSwitch bool
@@ -312,7 +319,7 @@ func (mb *MobileNode) Connect(req *ConnectRequest) error {
 		DisableKillSwitch: req.DisableKillSwitch,
 		EnableDNS:         req.EnableDNS,
 	}
-	if err := mb.connectionManager.Connect(identity.FromAddress(mb.unlockedIdentity.Address), mb.accountant, *proposal, connectOptions); err != nil {
+	if err := mb.connectionManager.Connect(identity.FromAddress(req.IdentityAddress), mb.accountant, *proposal, connectOptions); err != nil {
 		return errors.Wrap(err, "could not connect")
 	}
 	return nil
@@ -326,19 +333,37 @@ func (mb *MobileNode) Disconnect() error {
 	return nil
 }
 
-type UnlockIdentityResponse struct {
+type GetIdentityResponse struct {
 	IdentityAddress string
+	ChannelAddress  string
+	Registered      bool
 }
 
-// UnlockIdentity finds first identity and unlocks it.
+// GetIdentity finds first identity and unlocks it.
 // If there is no identity default one will be created.
-func (mb *MobileNode) UnlockIdentity() (*UnlockIdentityResponse, error) {
-	var err error
-	mb.unlockedIdentity, err = mb.identitySelector.UseOrCreate("", "")
+func (mb *MobileNode) GetIdentity() (*GetIdentityResponse, error) {
+	unlockedIdentity, err := mb.identitySelector.UseOrCreate("", "")
 	if err != nil {
 		return nil, errors.Wrap(err, "could not unlock identity")
 	}
-	return &UnlockIdentityResponse{IdentityAddress: mb.unlockedIdentity.Address}, nil
+
+	channelAddress, err := pc.GenerateChannelAddress(unlockedIdentity.Address, metadata.TestnetDefinition.AccountantID, mb.registryAddress, mb.channelImplementationAddress)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not generate channel address")
+	}
+
+	status, err := mb.identityRegistry.GetRegistrationStatus(identity.FromAddress(unlockedIdentity.Address))
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get identity registration status")
+	}
+
+	fmt.Println("Identity status", status.String())
+
+	return &GetIdentityResponse{
+		IdentityAddress: unlockedIdentity.Address,
+		ChannelAddress:  channelAddress,
+		Registered:      status == registry.RegisteredConsumer,
+	}, nil
 }
 
 type GetIdentityRegistrationFeesResponse struct {
@@ -351,22 +376,6 @@ func (mb *MobileNode) GetIdentityRegistrationFees() (*GetIdentityRegistrationFee
 		return nil, errors.Wrap(err, "could not get registration fees")
 	}
 	return &GetIdentityRegistrationFeesResponse{Fee: int64(fees.Fee)}, nil
-}
-
-type GetIdentityRegistrationStatusRequest struct {
-	IdentityAddress string
-}
-
-type GetIdentityRegistrationStatusResponse struct {
-	Status string
-}
-
-func (mb *MobileNode) GetIdentityRegistrationStatus(req *GetIdentityRegistrationStatusRequest) (*GetIdentityRegistrationStatusResponse, error) {
-	status, err := mb.identityRegistry.GetRegistrationStatus(identity.FromAddress(req.IdentityAddress))
-	if err != nil {
-		return nil, errors.Wrap(err, "could not get identity registration status")
-	}
-	return &GetIdentityRegistrationStatusResponse{Status: status.String()}, nil
 }
 
 type RegisterIdentityRequest struct {
