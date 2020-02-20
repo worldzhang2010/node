@@ -19,6 +19,8 @@ package session
 
 import (
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // TimeTracker tracks elapsed time from the beginning of the session
@@ -48,5 +50,13 @@ func (tt TimeTracker) Elapsed() time.Duration {
 		return 0 * time.Second
 	}
 	t := tt.getTime()
-	return t.Sub(tt.startTime)
+
+	e := wallTimeSub(t, tt.startTime)
+	log.Info().Msgf("Elapsed time: %s", e)
+	return e
+}
+
+// wallTimeSub is similar to time1.Sub(time1) but uses wall clock instead of monotonic time.
+func wallTimeSub(a, b time.Time) time.Duration  {
+	return time.Duration(a.Unix()-b.Unix())*time.Second + time.Duration(a.Nanosecond()-b.Nanosecond())
 }

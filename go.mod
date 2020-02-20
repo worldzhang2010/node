@@ -53,6 +53,7 @@ require (
 	github.com/oschwald/maxminddb-golang v1.5.0 // indirect
 	github.com/pierrec/lz4 v2.4.1+incompatible // indirect
 	github.com/pkg/errors v0.8.1
+	github.com/prashantgupta24/mac-sleep-notifier v1.0.1 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/rs/zerolog v1.17.2
 	github.com/sergi/go-diff v1.1.0 // indirect
