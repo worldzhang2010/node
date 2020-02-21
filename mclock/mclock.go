@@ -1,6 +1,11 @@
 package mclock
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"github.com/mysteriumnetwork/node/abs"
+)
 
 // Now returns new monotonic clock which holds current value of a clock that
 // increments monotonically in tick units (starting at an arbitrary point)
@@ -21,6 +26,9 @@ type Clock struct {
 	ticks uint64
 }
 
+// Sub calculates elapsed time between start and end times similar as in
+// time1.Sub(time2).
 func (t Clock) Sub(u Clock) time.Duration {
+	fmt.Println(abs.Abs(1.2))
 	return time.Duration(t.ticks - u.ticks)
 }

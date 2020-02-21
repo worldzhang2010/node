@@ -1,6 +1,7 @@
 package mclock
 
+import "time"
+
 func ticksNano() uint64 {
-	// TODO: Implement.
-	return 0
+	return uint64(time.Now().UnixNano())
 }
