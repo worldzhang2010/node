@@ -20,6 +20,7 @@ package session
 import (
 	"time"
 
+	"github.com/mysteriumnetwork/node/mclock"
 	"github.com/rs/zerolog/log"
 )
 
@@ -27,12 +28,12 @@ import (
 // it's passive (no internal go routines) and simply encapsulates time operation: now - startOfSession expressed as duration
 type TimeTracker struct {
 	started   bool
-	startTime time.Time
-	getTime   func() time.Time
+	startTime mclock.Clock
+	getTime   func() mclock.Clock
 }
 
-// NewTracker initializes TimeTracker with specified monotonically increasing clock function (usually time.Now is enough - but we do DI for test sake)
-func NewTracker(getTime func() time.Time) TimeTracker {
+// NewTracker initializes TimeTracker with specified monotonically increasing clock function (usually mclock.Now is enough - but we do DI for test sake)
+func NewTracker(getTime func() mclock.Clock) TimeTracker {
 	return TimeTracker{
 		getTime: getTime,
 	}
@@ -51,12 +52,7 @@ func (tt TimeTracker) Elapsed() time.Duration {
 	}
 	t := tt.getTime()
 
-	e := wallTimeSub(t, tt.startTime)
+	e := t.Sub(tt.startTime)
 	log.Info().Msgf("Elapsed time: %s", e)
 	return e
-}
-
-// wallTimeSub is similar to time1.Sub(time1) but uses wall clock instead of monotonic time.
-func wallTimeSub(a, b time.Time) time.Duration  {
-	return time.Duration(a.Unix()-b.Unix())*time.Second + time.Duration(a.Nanosecond()-b.Nanosecond())
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/mysteriumnetwork/node/eventbus"
 	"github.com/mysteriumnetwork/node/identity"
 	"github.com/mysteriumnetwork/node/market"
+	"github.com/mysteriumnetwork/node/mclock"
 	"github.com/mysteriumnetwork/node/money"
 	"github.com/mysteriumnetwork/node/session"
 	"github.com/mysteriumnetwork/payments/crypto"
@@ -105,7 +106,7 @@ func InvoiceFactoryCreator(
 		if err != nil {
 			return nil, err
 		}
-		timeTracker := session.NewTracker(time.Now)
+		timeTracker := session.NewTracker(mclock.Now)
 		deps := InvoiceTrackerDeps{
 			Proposal:                   proposal,
 			Peer:                       dialog.PeerID(),
@@ -163,7 +164,7 @@ func ExchangeFactoryFunc(
 		if err != nil {
 			return nil, err
 		}
-		timeTracker := session.NewTracker(time.Now)
+		timeTracker := session.NewTracker(mclock.Now)
 		deps := InvoicePayerDeps{
 			InvoiceChan:               invoices,
 			PeerExchangeMessageSender: NewExchangeSender(dialog),
