@@ -65,6 +65,7 @@ require (
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20200210222208-86ce3cb69678
+	golang.org/x/mobile v0.0.0-20200222142934-3c8601c510d0 // indirect
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5
 	golang.zx2c4.com/wireguard v0.0.20191012
