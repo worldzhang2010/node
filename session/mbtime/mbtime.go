@@ -63,11 +63,17 @@ const (
 
 // Sub returns the duration t-u.
 func (t Time) Sub(u Time) time.Duration {
+	log.Info().Msgf("Subbing: u.ns %v", u.ns)
+	log.Info().Msgf("Subbing: t.s %v", t.ns)
 	d := t.ns - u.ns
+	log.Info().Msgf("Subbing: d %v", d)
+
 	if d < 0 && t.ns > u.ns {
+		log.Info().Msgf("positive out of range")
 		return maxDuration // t - u is positive out of range
 	}
 	if d > 0 && t.ns < u.ns {
+		log.Info().Msgf("negative out of range")
 		return minDuration // t - u is negative out of range
 	}
 	return d

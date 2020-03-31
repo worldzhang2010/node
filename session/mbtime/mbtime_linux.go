@@ -17,10 +17,14 @@
 
 package mbtime
 
-import "golang.org/x/sys/unix"
+import (
+	"github.com/rs/zerolog/log"
+	"golang.org/x/sys/unix"
+)
 
 func nanotime() (uint64, error) {
 	var ts unix.Timespec
+	log.Info().Msgf("Getting nanotime")
 	if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &ts); err != nil {
 		if tempSyscallErr(err) {
 			if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &ts); err != nil {
@@ -28,5 +32,7 @@ func nanotime() (uint64, error) {
 			}
 		}
 	}
+
+	log.Info().Msgf("nanotimeRes ts.Sec*1e9=%v, ts.Nsec=", ts.Sec*1e9, ts.Nsec)
 	return uint64(ts.Sec*1e9 + ts.Nsec), nil
 }

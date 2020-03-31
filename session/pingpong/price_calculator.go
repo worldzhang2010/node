@@ -42,6 +42,7 @@ func isServiceFree(method market.PaymentMethod) bool {
 }
 
 func calculatePaymentAmount(timePassed time.Duration, bytesTransferred dataTransferred, method market.PaymentMethod) uint64 {
+	log.Info().Msgf("calculating amount based on timePassed: %v, bytesTransferred.Sum(), %v", timePassed, bytesTransferred.sum())
 	if isServiceFree(method) {
 		return 0
 	}
