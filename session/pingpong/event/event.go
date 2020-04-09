@@ -18,6 +18,7 @@
 package event
 
 import (
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/mysteriumnetwork/node/identity"
 	"github.com/mysteriumnetwork/payments/crypto"
 )
@@ -73,6 +74,6 @@ const AppTopicGrandTotalChanged = "consumer_grand_total_change"
 // AppEventGrandTotalChanged represents the grand total changed event.
 type AppEventGrandTotalChanged struct {
 	Current      uint64
-	AccountantID identity.Identity
+	AccountantID common.Address
 	ConsumerID   identity.Identity
 }
