@@ -20,6 +20,7 @@ package pingpong
 import (
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/mysteriumnetwork/node/eventbus"
 	"github.com/mysteriumnetwork/node/identity"
 	"github.com/mysteriumnetwork/node/session/pingpong/event"
@@ -44,11 +45,11 @@ func NewConsumerTotalsStorage(bolt persistentStorage, bus eventbus.Publisher) *C
 }
 
 // Store stores the given amount as promised for the given channel.
-func (cts *ConsumerTotalsStorage) Store(consumerAddress, accountantAddress identity.Identity, amount uint64) error {
+func (cts *ConsumerTotalsStorage) Store(id identity.Identity, accountantAddress common.Address, amount uint64) error {
 	cts.lock.Lock()
 	defer cts.lock.Unlock()
 
-	err := cts.bolt.SetValue(consumerTotalStorageBucketName, consumerAddress.Address+accountantAddress.Address, amount)
+	err := cts.bolt.SetValue(consumerTotalStorageBucketName, id.Address+accountantAddress.Hex(), amount)
 	if err != nil {
 		return err
 	}
@@ -56,18 +57,18 @@ func (cts *ConsumerTotalsStorage) Store(consumerAddress, accountantAddress ident
 	go cts.bus.Publish(event.AppTopicGrandTotalChanged, event.AppEventGrandTotalChanged{
 		Current:      amount,
 		AccountantID: accountantAddress,
-		ConsumerID:   consumerAddress,
+		ConsumerID:   id,
 	})
 
 	return nil
 }
 
 // Get fetches the amount as promised for the given channel.
-func (cts *ConsumerTotalsStorage) Get(consumerAddress, accountantAddress identity.Identity) (uint64, error) {
+func (cts *ConsumerTotalsStorage) Get(id identity.Identity, accountantAddress common.Address) (uint64, error) {
 	cts.lock.Lock()
 	defer cts.lock.Unlock()
 	var res uint64
-	err := cts.bolt.GetValue(consumerTotalStorageBucketName, consumerAddress.Address+accountantAddress.Address, &res)
+	err := cts.bolt.GetValue(consumerTotalStorageBucketName, id.Address+accountantAddress.Hex(), &res)
 	if err != nil {
 		// wrap the error to an error we can check for
 		if err.Error() == errBoltNotFound {
