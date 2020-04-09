@@ -37,7 +37,7 @@ const (
 // AppEventAccountantPromise represents the payload that is sent on the AppTopicAccountantPromise.
 type AppEventAccountantPromise struct {
 	Promise      crypto.Promise
-	AccountantID identity.Identity
+	AccountantID common.Address
 	ProviderID   identity.Identity
 }
 

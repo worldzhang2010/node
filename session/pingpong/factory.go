@@ -97,8 +97,8 @@ func InvoiceFactoryCreator(
 	proposal market.ServiceProposal,
 	settler settler,
 	encryptor encryption,
-) func(identity.Identity, identity.Identity, identity.Identity, string) (session.PaymentEngine, error) {
-	return func(providerID, consumerID, accountantID identity.Identity, sessionID string) (session.PaymentEngine, error) {
+) func(identity.Identity, identity.Identity, common.Address, string) (session.PaymentEngine, error) {
+	return func(providerID, consumerID identity.Identity, accountantID common.Address, sessionID string) (session.PaymentEngine, error) {
 		exchangeChan, err := exchangeMessageReceiver(dialog, channel)
 		if err != nil {
 			return nil, err
@@ -127,7 +127,7 @@ func InvoiceFactoryCreator(
 			Settler:                    settler,
 			SessionID:                  sessionID,
 			Encryption:                 encryptor,
-			ChannelAddressCalculator:   NewChannelAddressCalculator(accountantID.Address, channelImplementationAddress, registryAddress),
+			ChannelAddressCalculator:   NewChannelAddressCalculator(accountantID.Hex(), channelImplementationAddress, registryAddress),
 		}
 		paymentEngine := NewInvoiceTracker(deps)
 		return paymentEngine, nil

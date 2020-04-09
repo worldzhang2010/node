@@ -88,8 +88,8 @@ type providerInvoiceStorage interface {
 }
 
 type accountantPromiseStorage interface {
-	Store(providerID, accountantID identity.Identity, promise AccountantPromise) error
-	Get(providerID, accountantID identity.Identity) (AccountantPromise, error)
+	Store(providerID identity.Identity, accountantAddress common.Address, promise AccountantPromise) error
+	Get(providerID identity.Identity, accountantAddress common.Address) (AccountantPromise, error)
 }
 
 type accountantCaller interface {
@@ -97,7 +97,7 @@ type accountantCaller interface {
 	RevealR(r string, provider string, agreementID uint64) error
 }
 
-type settler func(providerID, accountantID identity.Identity) error
+type settler func(providerID identity.Identity, accountantAddress common.Address) error
 
 type sentInvoice struct {
 	invoice crypto.Invoice
@@ -155,7 +155,7 @@ type InvoiceTrackerDeps struct {
 	ExchangeMessageChan        chan crypto.ExchangeMessage
 	ExchangeMessageWaitTimeout time.Duration
 	ProviderID                 identity.Identity
-	AccountantID               identity.Identity
+	AccountantID               common.Address
 	AccountantCaller           accountantCaller
 	AccountantPromiseStorage   accountantPromiseStorage
 	Registry                   string
@@ -403,7 +403,7 @@ func (it *InvoiceTracker) Start() error {
 	}
 	it.transactorFee = fees
 
-	fee, err := it.deps.BlockchainHelper.GetAccountantFee(common.HexToAddress(it.deps.AccountantID.Address))
+	fee, err := it.deps.BlockchainHelper.GetAccountantFee(it.deps.AccountantID)
 	if err != nil {
 		return errors.Wrap(err, "could not get accountants fee")
 	}
