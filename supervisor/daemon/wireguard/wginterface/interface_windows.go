@@ -21,16 +21,36 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/Microsoft/go-winio"
+	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
+func init() {
+	sddl := "O:SYD:P(A;;GA;;;SY)"
+	socketGroup := "Users"
+	sid, err := winio.LookupSidByName(socketGroup)
+	if err != nil {
+		panic(err)
+	}
+	sddl += fmt.Sprintf("(A;;GRGW;;;%s)", sid)
+	ipc.UAPISecurityDescriptor, err = windows.SecurityDescriptorFromString(sddl)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // New creates new WgInterface instance.
 func New(interfaceName string, uid string) (*WgInterface, error) {
 	log.Println("Creating Wintun interface")
 
-	wintun, err := tun.CreateTUN(interfaceName, 0)
+	//reqGUID, err := windows.GenerateGUID()
+	//if err != nil {
+	//	return nil, fmt.Errorf("could not generate win GUID: %w", err)
+	//}
+	wintun, err := tun.CreateTUNWithRequestedGUID(interfaceName, nil, 0)
 	if err != nil {
 		return nil, fmt.Errorf("could not create wintun: %w", err)
 	}
@@ -41,6 +61,14 @@ func New(interfaceName string, uid string) (*WgInterface, error) {
 	} else {
 		log.Printf("Using Wintun/%s (NDIS %s)", wintunVersion, ndisVersion)
 	}
+
+	//tunDevice, err := water.New(water.Config{
+	//	DeviceType: water.TUN,
+	//	PlatformSpecificParams: water.PlatformSpecificParams{
+	//		ComponentID: "tap0901",
+	//		Network:     subnet.String(),
+	//	},
+	//})
 
 	log.Println("Creating interface instance")
 	// TODO: Use ring logger?

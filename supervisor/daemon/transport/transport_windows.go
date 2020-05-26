@@ -19,8 +19,10 @@ package transport
 
 import (
 	"fmt"
-	"log"
+	"os"
 	"strings"
+
+	"log"
 
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows/svc"
@@ -40,9 +42,30 @@ type managerService struct {
 
 func (m *managerService) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPauseAndContinue
+	f, err := os.OpenFile("myst_supervisor.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+	log.SetOutput(f)
+
+	//go func() {
+	//	f, err := os.OpenFile("supervisor.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+	//	if err != nil {
+	//		log.Fatalf("error opening file: %v", err)
+	//	}
+	//	defer f.Close()
+	//	log.SetOutput(f)
+	//
+	//	for {
+	//		log.Println("tick")
+	//		time.Sleep(time.Second)
+	//	}
+	//}()
 
 	s <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 	go func() {
+		log.Println("Starting listening supervisor win pipe")
 		if err := m.listenPipe(); err != nil {
 			log.Printf("could not listen pipe: %v", err)
 		}
@@ -59,7 +82,7 @@ func (m *managerService) Execute(args []string, r <-chan svc.ChangeRequest, s ch
 		case svc.Continue:
 			s <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 		default:
-			log.Printf("unexpected control request #%d", c)
+			log.Printf("Unexpected control request #%d", c)
 		}
 	}
 	return
@@ -90,7 +113,7 @@ func (m *managerService) listenPipe() error {
 	}
 	defer func() {
 		if err := l.Close(); err != nil {
-			log.Println("Error closing listener:", err)
+			log.Printf("Error closing listener:", err)
 		}
 	}()
 	for {
@@ -106,7 +129,7 @@ func (m *managerService) listenPipe() error {
 			if err := conn.Close(); err != nil {
 				log.Printf("Error closing connection for: %v error: %v", peer, err)
 			}
-			log.Println("Client disconnected:", peer)
+			log.Println("Client disconnected: ", peer)
 		}()
 	}
 }

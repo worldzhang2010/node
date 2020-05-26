@@ -106,7 +106,7 @@ func (d *Daemon) dialog(conn io.ReadWriter) {
 			}
 		case commandKill:
 			if err := d.killMyst(); err != nil {
-				log.Println("Could not kill myst:", err)
+				log.Print("Could not kill myst:", err)
 				answer.err(err)
 			} else {
 				answer.ok()

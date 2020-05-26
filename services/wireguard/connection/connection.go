@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"runtime"
 	"sync"
 	"time"
 
@@ -154,8 +155,12 @@ func (c *Connection) Start(ctx context.Context, options connection.ConnectOption
 		return errors.Wrap(err, "could not resolve DNS IPs")
 	}
 	config.Consumer.DNSIPs = dnsIPs[0]
-	if err := c.dnsManager.Set(c.opts.DNSScriptDir, conn.InterfaceName(), config.Consumer.DNSIPs); err != nil {
-		return errors.Wrap(err, "failed to configure DNS")
+
+	// TODO: Add provider's DNS support for windows.
+	if runtime.GOOS != "windows" {
+		if err := c.dnsManager.Set(c.opts.DNSScriptDir, conn.InterfaceName(), config.Consumer.DNSIPs); err != nil {
+			return errors.Wrap(err, "failed to configure DNS")
+		}
 	}
 
 	c.stateCh <- connection.Connected

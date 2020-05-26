@@ -19,8 +19,8 @@ package install
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/rs/zerolog/log"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -49,6 +49,7 @@ func Install(options Options) error {
 		log.Printf("Failed to remove service: %v", err)
 	}
 
+	log.Printf("Installing new %s service", serviceName)
 	if err := installAndStartService(m, serviceName, options, config); err != nil {
 		return fmt.Errorf("could not install and run service: %w", err)
 	}
@@ -85,7 +86,7 @@ func uninstallService(m *mgr.Mgr, name string) error {
 		return fmt.Errorf("service %s is not installed", name)
 	}
 	defer s.Close()
-	log.Println("Detected previously installed service, uninstalling...")
+	log.Print("Detected previously installed service, uninstalling...")
 
 	s.Control(svc.Stop)
 	err = s.Delete()

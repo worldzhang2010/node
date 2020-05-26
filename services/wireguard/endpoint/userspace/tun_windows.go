@@ -49,12 +49,35 @@ func CreateTUN(name string, subnet net.IPNet) (tun.Device, error) {
 		return nil, errors.Wrap(err, "failed to create new TUN device")
 	}
 
-	if err := netutil.AssignIP(tunDevice.Name(), subnet); err != nil {
+	//reqGUID, err := windows.GenerateGUID()
+	//if err != nil {
+	//	return nil, fmt.Errorf("could not generate win GUID: %w", err)
+	//}
+	//tunDevice, err := tun.CreateTUNWithRequestedGUID(name, &reqGUID, 0)
+	//if err != nil {
+	//	return nil, fmt.Errorf("could not create wintun: %w", err)
+	//}
+	//nativeTun_ := tunDevice.(*tun.NativeTun)
+	//wintunVersion, ndisVersion, err := nativeTun_.Version()
+	//if err != nil {
+	//	log.Printf("Warning: unable to determine Wintun version: %v", err)
+	//} else {
+	//	log.Printf("Using Wintun/%s (NDIS %s)", wintunVersion, ndisVersion)
+	//}
+
+	//deviceName, err := tunDevice.Name()
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	deviceName := tunDevice.Name()
+
+	if err := netutil.AssignIP(deviceName, subnet); err != nil {
 		return nil, errors.Wrap(err, "failed to assign IP address")
 	}
 
-	if tunDevice.Name() != name {
-		if err := renameInterface(tunDevice.Name(), name); err != nil {
+	if deviceName != name {
+		if err := renameInterface(deviceName, name); err != nil {
 			return nil, errors.Wrap(err, "failed to rename network interface")
 		}
 	}
@@ -78,11 +101,11 @@ func (tun *nativeTun) Events() chan tun.Event {
 }
 
 func (tun *nativeTun) Read(buff []byte, offset int) (int, error) {
-	return tun.tun.Read(buff[offset:])
+	return tun.tun.Read(buff[:offset])
 }
 
 func (tun *nativeTun) Write(buff []byte, offset int) (int, error) {
-	return tun.tun.Write(buff[offset:])
+	return tun.tun.Write(buff[:offset])
 }
 
 func (tun *nativeTun) Close() error {
