@@ -33,14 +33,11 @@ func createTUN(iface string, subnet net.IPNet) error {
 		return err
 	}
 
-	actualIface, err := supervisorclient.Command("wg-up", "-iface", iface, "-uid", currentUser.Uid)
+	actualIface, err := supervisorclient.Command("wg-up", "-iface", iface, "-uid", currentUser.Uid, "-net", subnet.String())
 	if err != nil {
 		return fmt.Errorf("failed to create wg interface: %w", err)
 	}
 	log.Debug().Msgf("Tunnel interface created: %s", actualIface)
-	if err := assignIP(iface, subnet); err != nil {
-		return fmt.Errorf("failed to assign IP address: %w", err)
-	}
 	return nil
 }
 
@@ -50,9 +47,4 @@ func destroyTUN(iface string) error {
 		return fmt.Errorf("failed to destroy wg interface: %w", err)
 	}
 	return nil
-}
-
-func assignIP(iface string, subnet net.IPNet) error {
-	_, err := supervisorclient.Command("assign-ip", "-iface", iface, "-net", subnet.String())
-	return err
 }

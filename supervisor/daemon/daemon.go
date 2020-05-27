@@ -80,14 +80,14 @@ func (d *Daemon) dialog(conn io.ReadWriter) {
 			} else {
 				answer.ok()
 			}
-		case commandAssignIP:
-			err := d.assignIP(cmd...)
-			if err != nil {
-				log.Printf("failed %s: %s", commandAssignIP, err)
-				answer.err(err)
-			} else {
-				answer.ok()
-			}
+		//case commandAssignIP:
+		//	err := d.assignIP(cmd...)
+		//	if err != nil {
+		//		log.Printf("failed %s: %s", commandAssignIP, err)
+		//		answer.err(err)
+		//	} else {
+		//		answer.ok()
+		//	}
 		case commandExcludeRoute:
 			err := d.excludeRoute(cmd...)
 			if err != nil {
@@ -121,6 +121,7 @@ func (d *Daemon) wgUp(args ...string) (interfaceName string, err error) {
 	uid := flags.String("uid", "", "User ID."+
 		" On POSIX systems, this is a decimal number representing the uid."+
 		" On Windows, this is a security identifier (SID) in a string format.")
+	network := flags.String("net", "", "Subnet in CIDR notation")
 	if err := flags.Parse(args[1:]); err != nil {
 		return "", err
 	}
@@ -130,7 +131,16 @@ func (d *Daemon) wgUp(args ...string) (interfaceName string, err error) {
 	if *uid == "" {
 		return "", errors.New("-uid is required")
 	}
-	return d.monitor.Up(*requestedInterfaceName, *uid)
+	if *network == "" {
+		return "", errors.New("-net is required")
+	}
+	ip, ipNet, err := net.ParseCIDR(*network)
+	if err != nil {
+		return "", fmt.Errorf("-net could not be parsed: %w", err)
+	}
+	ipNet.IP = ip
+
+	return d.monitor.Up(*requestedInterfaceName, *uid, *ipNet)
 }
 
 func (d *Daemon) wgDown(args ...string) (err error) {
@@ -145,29 +155,29 @@ func (d *Daemon) wgDown(args ...string) (err error) {
 	return d.monitor.Down(*interfaceName)
 }
 
-func (d *Daemon) assignIP(args ...string) (err error) {
-	flags := flag.NewFlagSet("", flag.ContinueOnError)
-	interfaceName := flags.String("iface", "", "")
-	network := flags.String("net", "", "")
-	if err := flags.Parse(args[1:]); err != nil {
-		return err
-	}
-	if *interfaceName == "" {
-		return errors.New("-iface is required")
-	}
-	if *network == "" {
-		return errors.New("-net is required")
-	}
-	ip, ipNet, err := net.ParseCIDR(*network)
-	if err != nil {
-		return fmt.Errorf("-net could not be parsed: %w", err)
-	}
-	ipNet.IP = ip
-	if err := netutil.AssignIP(*interfaceName, *ipNet); err != nil {
-		return fmt.Errorf("could not assign IP: %w", err)
-	}
-	return nil
-}
+//func (d *Daemon) assignIP(args ...string) (err error) {
+//	flags := flag.NewFlagSet("", flag.ContinueOnError)
+//	interfaceName := flags.String("iface", "", "")
+//	network := flags.String("net", "", "")
+//	if err := flags.Parse(args[1:]); err != nil {
+//		return err
+//	}
+//	if *interfaceName == "" {
+//		return errors.New("-iface is required")
+//	}
+//	if *network == "" {
+//		return errors.New("-net is required")
+//	}
+//	ip, ipNet, err := net.ParseCIDR(*network)
+//	if err != nil {
+//		return fmt.Errorf("-net could not be parsed: %w", err)
+//	}
+//	ipNet.IP = ip
+//	if err := netutil.AssignIP(*interfaceName, *ipNet); err != nil {
+//		return fmt.Errorf("could not assign IP: %w", err)
+//	}
+//	return nil
+//}
 
 func (d *Daemon) excludeRoute(args ...string) (err error) {
 	flags := flag.NewFlagSet("", flag.ContinueOnError)

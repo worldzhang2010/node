@@ -20,10 +20,12 @@ package wginterface
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 
 	"github.com/Microsoft/go-winio"
+	"github.com/mysteriumnetwork/node/utils/netutil"
 	"github.com/songgao/water"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/device"
@@ -46,7 +48,7 @@ func init() {
 }
 
 // New creates new WgInterface instance.
-func New(interfaceName string, uid string) (*WgInterface, error) {
+func New(interfaceName string, uid string, subnet net.IPNet) (*WgInterface, error) {
 	log.Println("Creating Wintun interface")
 
 	//reqGUID, err := windows.GenerateGUID()
@@ -69,7 +71,7 @@ func New(interfaceName string, uid string) (*WgInterface, error) {
 		DeviceType: water.TUN,
 		PlatformSpecificParams: water.PlatformSpecificParams{
 			ComponentID: "tap0901",
-			// Network:     subnet.String(),
+			Network:     subnet.String(),
 		},
 	})
 	if err != nil {
@@ -82,8 +84,12 @@ func New(interfaceName string, uid string) (*WgInterface, error) {
 		}
 	}
 
+	if err := netutil.AssignIP(interfaceName, subnet); err != nil {
+		return nil, fmt.Errorf("could not assign IP: %w", err)
+	}
+
 	log.Println("Creating interface instance")
-	// TODO: Use ring logger?
+	// TODO: Output wg logs to file.
 	logger := device.NewLogger(device.LogLevelDebug, fmt.Sprintf("(%s) ", interfaceName))
 	logger.Info.Println("Starting wireguard-go version", device.WireGuardGoVersion)
 	wgDevice := device.NewDevice(&nativeTun{

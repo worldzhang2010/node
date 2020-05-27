@@ -20,10 +20,12 @@ package wginterface
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path"
 	"strconv"
 
+	"github.com/mysteriumnetwork/node/utils/netutil"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/tun"
@@ -34,7 +36,7 @@ func socketPath(interfaceName string) string {
 }
 
 // New creates new WgInterface instance.
-func New(requestedInterfaceName string, uid string) (*WgInterface, error) {
+func New(requestedInterfaceName string, uid string, subnet net.IPNet) (*WgInterface, error) {
 	tunnel, interfaceName, err := createTunnel(requestedInterfaceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TUN device %s: %w", requestedInterfaceName, err)
@@ -63,6 +65,10 @@ func New(requestedInterfaceName string, uid string) (*WgInterface, error) {
 	err = os.Chown(socketPath(interfaceName), numUid, -1) // this won't work on windows
 	if err != nil {
 		return nil, fmt.Errorf("failed to chown wireguard socket to uid %s: %w", uid, err)
+	}
+
+	if err := netutil.AssignIP(interfaceName, ipNet); err != nil {
+		return fmt.Errorf("could not assign IP: %w", err)
 	}
 
 	wg := &WgInterface{
