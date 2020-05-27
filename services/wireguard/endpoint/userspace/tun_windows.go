@@ -20,57 +20,60 @@
 package userspace
 
 import (
+	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
 
 	"github.com/mysteriumnetwork/node/utils/netutil"
 	"github.com/pkg/errors"
-	"github.com/songgao/water"
+
+	// "github.com/songgao/water"
+	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
 type nativeTun struct {
-	tun    *water.Interface
+	//tun    *water.Interface
+	tun    tun.Device
 	events chan tun.Event
 }
 
 // CreateTUN creates native TUN device for wireguard.
 func CreateTUN(name string, subnet net.IPNet) (tun.Device, error) {
-	tunDevice, err := water.New(water.Config{
-		DeviceType: water.TUN,
-		PlatformSpecificParams: water.PlatformSpecificParams{
-			ComponentID: "tap0901",
-			Network:     subnet.String(),
-		},
-	})
+	//tunDevice, err := water.New(water.Config{
+	//	DeviceType: water.TUN,
+	//	PlatformSpecificParams: water.PlatformSpecificParams{
+	//		ComponentID: "tap0901",
+	//		Network:     subnet.String(),
+	//	},
+	//})
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "failed to create new TUN device")
+	//}
+
+	reqGUID, err := windows.GenerateGUID()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create new TUN device")
+		return nil, fmt.Errorf("could not generate win GUID: %w", err)
+	}
+	tunDevice, err := tun.CreateTUNWithRequestedGUID(name, &reqGUID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("could not create wintun: %w", err)
+	}
+	nativeTun_ := tunDevice.(*tun.NativeTun)
+	wintunVersion, ndisVersion, err := nativeTun_.Version()
+	if err != nil {
+		log.Printf("Warning: unable to determine Wintun version: %v", err)
+	} else {
+		log.Printf("Using Wintun/%s (NDIS %s)", wintunVersion, ndisVersion)
 	}
 
-	//reqGUID, err := windows.GenerateGUID()
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not generate win GUID: %w", err)
-	//}
-	//tunDevice, err := tun.CreateTUNWithRequestedGUID(name, &reqGUID, 0)
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not create wintun: %w", err)
-	//}
-	//nativeTun_ := tunDevice.(*tun.NativeTun)
-	//wintunVersion, ndisVersion, err := nativeTun_.Version()
-	//if err != nil {
-	//	log.Printf("Warning: unable to determine Wintun version: %v", err)
-	//} else {
-	//	log.Printf("Using Wintun/%s (NDIS %s)", wintunVersion, ndisVersion)
-	//}
-
-	//deviceName, err := tunDevice.Name()
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	deviceName := tunDevice.Name()
+	deviceName, err := tunDevice.Name()
+	if err != nil {
+		return nil, err
+	}
 
 	if err := netutil.AssignIP(deviceName, subnet); err != nil {
 		return nil, errors.Wrap(err, "failed to assign IP address")
@@ -89,7 +92,7 @@ func CreateTUN(name string, subnet net.IPNet) (tun.Device, error) {
 }
 
 func (tun *nativeTun) Name() (string, error) {
-	return tun.tun.Name(), nil
+	return tun.tun.Name()
 }
 
 func (tun *nativeTun) File() *os.File {
@@ -101,11 +104,11 @@ func (tun *nativeTun) Events() chan tun.Event {
 }
 
 func (tun *nativeTun) Read(buff []byte, offset int) (int, error) {
-	return tun.tun.Read(buff[:offset])
+	return tun.tun.Read(buff, offset)
 }
 
 func (tun *nativeTun) Write(buff []byte, offset int) (int, error) {
-	return tun.tun.Write(buff[:offset])
+	return tun.tun.Write(buff, offset)
 }
 
 func (tun *nativeTun) Close() error {
