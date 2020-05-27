@@ -20,8 +20,11 @@ package wginterface
 import (
 	"fmt"
 	"log"
+	"os"
+	"os/exec"
 
 	"github.com/Microsoft/go-winio"
+	"github.com/songgao/water"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
@@ -50,31 +53,43 @@ func New(interfaceName string, uid string) (*WgInterface, error) {
 	//if err != nil {
 	//	return nil, fmt.Errorf("could not generate win GUID: %w", err)
 	//}
-	wintun, err := tun.CreateTUNWithRequestedGUID(interfaceName, nil, 0)
+	//wintun, err := tun.CreateTUNWithRequestedGUID(interfaceName, nil, 0)
+	//if err != nil {
+	//	return nil, fmt.Errorf("could not create wintun: %w", err)
+	//}
+	//nativeTun := wintun.(*tun.NativeTun)
+	//wintunVersion, ndisVersion, err := nativeTun.Version()
+	//if err != nil {
+	//	log.Printf("Warning: unable to determine Wintun version: %v", err)
+	//} else {
+	//	log.Printf("Using Wintun/%s (NDIS %s)", wintunVersion, ndisVersion)
+	//}
+
+	tunDevice, err := water.New(water.Config{
+		DeviceType: water.TUN,
+		PlatformSpecificParams: water.PlatformSpecificParams{
+			ComponentID: "tap0901",
+			// Network:     subnet.String(),
+		},
+	})
 	if err != nil {
-		return nil, fmt.Errorf("could not create wintun: %w", err)
-	}
-	nativeTun := wintun.(*tun.NativeTun)
-	wintunVersion, ndisVersion, err := nativeTun.Version()
-	if err != nil {
-		log.Printf("Warning: unable to determine Wintun version: %v", err)
-	} else {
-		log.Printf("Using Wintun/%s (NDIS %s)", wintunVersion, ndisVersion)
+		return nil, fmt.Errorf("failed to create new TUN device: %w", err)
 	}
 
-	//tunDevice, err := water.New(water.Config{
-	//	DeviceType: water.TUN,
-	//	PlatformSpecificParams: water.PlatformSpecificParams{
-	//		ComponentID: "tap0901",
-	//		Network:     subnet.String(),
-	//	},
-	//})
+	if tunDevice.Name() != interfaceName {
+		if err := renameInterface(tunDevice.Name(), interfaceName); err != nil {
+			return nil, fmt.Errorf("failed to rename network interface: %w", err)
+		}
+	}
 
 	log.Println("Creating interface instance")
 	// TODO: Use ring logger?
 	logger := device.NewLogger(device.LogLevelDebug, fmt.Sprintf("(%s) ", interfaceName))
 	logger.Info.Println("Starting wireguard-go version", device.WireGuardGoVersion)
-	wgDevice := device.NewDevice(wintun, logger)
+	wgDevice := device.NewDevice(&nativeTun{
+		tun:    tunDevice,
+		events: make(chan tun.Event, 10),
+	}, logger)
 
 	log.Println("Setting interface configuration")
 	uapi, err := ipc.UAPIListen(interfaceName)
@@ -110,4 +125,47 @@ func (a *WgInterface) Down() {
 		log.Printf("could not close uapi socket: %w", err)
 	}
 	a.device.Close()
+}
+
+func renameInterface(name, newname string) error {
+	_, err := exec.Command("powershell", "-Command", "netsh interface set interface name=\""+name+"\" newname=\""+newname+"\"").CombinedOutput()
+	return err
+}
+
+type nativeTun struct {
+	tun    *water.Interface
+	events chan tun.Event
+}
+
+func (tun *nativeTun) Name() (string, error) {
+	return tun.tun.Name(), nil
+}
+
+func (tun *nativeTun) File() *os.File {
+	return nil
+}
+
+func (tun *nativeTun) Events() chan tun.Event {
+	return tun.events
+}
+
+func (tun *nativeTun) Read(buff []byte, offset int) (int, error) {
+	return tun.tun.Read(buff[offset:])
+}
+
+func (tun *nativeTun) Write(buff []byte, offset int) (int, error) {
+	return tun.tun.Write(buff[offset:])
+}
+
+func (tun *nativeTun) Close() error {
+	close(tun.events)
+	return tun.tun.Close()
+}
+
+func (tun *nativeTun) Flush() error {
+	return nil
+}
+
+func (tun *nativeTun) MTU() (int, error) {
+	return device.DefaultMTU, nil
 }
