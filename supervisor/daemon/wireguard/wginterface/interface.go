@@ -18,6 +18,7 @@
 package wginterface
 
 import (
+	"io"
 	"net"
 
 	"golang.zx2c4.com/wireguard/device"
@@ -25,7 +26,8 @@ import (
 
 // WgInterface represents WireGuard tunnel with underlying device.
 type WgInterface struct {
-	Name   string
-	device *device.Device
-	uapi   net.Listener
+	Name      string
+	device    *device.Device
+	uapi      net.Listener
+	logWriter io.WriteCloser
 }

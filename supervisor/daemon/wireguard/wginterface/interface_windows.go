@@ -19,6 +19,8 @@ package wginterface
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -89,9 +91,13 @@ func New(interfaceName string, uid string, subnet net.IPNet) (*WgInterface, erro
 	}
 
 	log.Println("Creating interface instance")
-	// TODO: Output wg logs to file.
-	logger := device.NewLogger(device.LogLevelDebug, fmt.Sprintf("(%s) ", interfaceName))
+	f, err := os.OpenFile("myst_supervisor_wg.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	logger := NewLogger(device.LogLevelDebug, fmt.Sprintf("(%s) ", interfaceName), f)
 	logger.Info.Println("Starting wireguard-go version", device.WireGuardGoVersion)
+
 	wgDevice := device.NewDevice(&nativeTun{
 		tun:    tunDevice,
 		events: make(chan tun.Event, 10),
@@ -104,9 +110,10 @@ func New(interfaceName string, uid string, subnet net.IPNet) (*WgInterface, erro
 	}
 
 	wg := &WgInterface{
-		Name:   interfaceName,
-		device: wgDevice,
-		uapi:   uapi,
+		Name:      interfaceName,
+		device:    wgDevice,
+		uapi:      uapi,
+		logWriter: f,
 	}
 	go wg.handleUAPI()
 
@@ -131,6 +138,7 @@ func (a *WgInterface) Down() {
 		log.Printf("could not close uapi socket: %w", err)
 	}
 	a.device.Close()
+	a.logWriter.Close()
 }
 
 func renameInterface(name, newname string) error {
@@ -174,4 +182,43 @@ func (tun *nativeTun) Flush() error {
 
 func (tun *nativeTun) MTU() (int, error) {
 	return device.DefaultMTU, nil
+}
+
+const (
+	LogLevelSilent = iota
+	LogLevelError
+	LogLevelInfo
+	LogLevelDebug
+)
+
+func NewLogger(level int, prepend string, output io.Writer) *device.Logger {
+	logger := new(device.Logger)
+
+	logErr, logInfo, logDebug := func() (io.Writer, io.Writer, io.Writer) {
+		if level >= LogLevelDebug {
+			return output, output, output
+		}
+		if level >= LogLevelInfo {
+			return output, output, ioutil.Discard
+		}
+		if level >= LogLevelError {
+			return output, ioutil.Discard, ioutil.Discard
+		}
+		return ioutil.Discard, ioutil.Discard, ioutil.Discard
+	}()
+
+	logger.Debug = log.New(logDebug,
+		"DEBUG: "+prepend,
+		log.Ldate|log.Ltime,
+	)
+
+	logger.Info = log.New(logInfo,
+		"INFO: "+prepend,
+		log.Ldate|log.Ltime,
+	)
+	logger.Error = log.New(logErr,
+		"ERROR: "+prepend,
+		log.Ldate|log.Ltime,
+	)
+	return logger
 }
