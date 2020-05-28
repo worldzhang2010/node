@@ -19,10 +19,8 @@ package transport
 
 import (
 	"fmt"
-	"os"
-	"strings"
-
 	"log"
+	"os"
 
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows/svc"
@@ -93,13 +91,11 @@ func (m *managerService) listenPipe() error {
 	// during supervisor installation as adding whole Users group is not secure.
 	socketGroup := "Users"
 	sddl := "D:P(A;;GA;;;BA)(A;;GA;;;SY)"
-	for _, g := range strings.Split(socketGroup, ",") {
-		sid, err := winio.LookupSidByName(g)
-		if err != nil {
-			return err
-		}
-		sddl += fmt.Sprintf("(A;;GRGW;;;%s)", sid)
+	sid, err := winio.LookupSidByName(socketGroup)
+	if err != nil {
+		return err
 	}
+	sddl += fmt.Sprintf("(A;;GRGW;;;%s)", sid)
 	c := winio.PipeConfig{
 		SecurityDescriptor: sddl,
 		MessageMode:        true,
