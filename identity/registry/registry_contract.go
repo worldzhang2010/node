@@ -344,12 +344,12 @@ func (registry *contractRegistry) isRegisteredInBC(id identity.Identity) (Regist
 		},
 	}
 
-	accountantContract, err := bindings.NewAccountantImplementationCaller(registry.accountantAddress, registry.ethC.Client())
+	accountantContract, err := bindings.NewHermesImplementationCaller(registry.accountantAddress, registry.ethC.Client())
 	if err != nil {
 		return RegistrationError, fmt.Errorf("could not get accountant implementation caller %w", err)
 	}
 
-	accountantSession := &bindings.AccountantImplementationCallerSession{
+	accountantSession := &bindings.HermesImplementationCallerSession{
 		Contract: accountantContract,
 		CallOpts: bind.CallOpts{
 			Pending: false, //we want to find out true registration status - not pending transactions
@@ -377,7 +377,7 @@ func (registry *contractRegistry) isRegisteredInBC(id identity.Identity) (Regist
 		return RegistrationError, errors.Wrap(err, "could not get provider channel")
 	}
 
-	if providerChannel.Loan.Cmp(big.NewInt(0)) == 1 {
+	if providerChannel.Stake.Cmp(big.NewInt(0)) == 1 {
 		return RegisteredProvider, nil
 	}
 

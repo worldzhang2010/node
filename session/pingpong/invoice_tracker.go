@@ -73,7 +73,7 @@ type PeerInvoiceSender interface {
 }
 
 type bcHelper interface {
-	GetAccountantFee(accountantAddress common.Address) (uint16, error)
+	GetHermesFee(accountantAddress common.Address) (uint16, error)
 }
 
 type providerInvoiceStorage interface {
@@ -276,7 +276,7 @@ func (it *InvoiceTracker) Start() error {
 		return fmt.Errorf("consumer wants to work with an unsupported accountant(%q) while provider expects %q", it.deps.ConsumersAccountantID.Hex(), it.deps.ProvidersAccountantID.Hex())
 	}
 
-	fee, err := it.deps.BlockchainHelper.GetAccountantFee(it.deps.ConsumersAccountantID)
+	fee, err := it.deps.BlockchainHelper.GetHermesFee(it.deps.ConsumersAccountantID)
 	if err != nil {
 		return errors.Wrap(err, "could not get accountants fee")
 	}

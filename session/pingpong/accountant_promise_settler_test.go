@@ -417,14 +417,14 @@ func TestPromiseSettlerState_balance(t *testing.T) {
 type mockProviderChannelStatusProvider struct {
 	channelToReturn    client.ProviderChannel
 	channelReturnError error
-	sinkToReturn       chan *bindings.AccountantImplementationPromiseSettled
+	sinkToReturn       chan *bindings.HermesImplementationPromiseSettled
 	subCancel          func()
 	subError           error
 	feeToReturn        uint16
 	feeError           error
 }
 
-func (mpcsp *mockProviderChannelStatusProvider) SubscribeToPromiseSettledEvent(providerID, accountantID common.Address) (sink chan *bindings.AccountantImplementationPromiseSettled, cancel func(), err error) {
+func (mpcsp *mockProviderChannelStatusProvider) SubscribeToPromiseSettledEvent(providerID, accountantID common.Address) (sink chan *bindings.HermesImplementationPromiseSettled, cancel func(), err error) {
 	return mpcsp.sinkToReturn, mpcsp.subCancel, mpcsp.subError
 }
 
@@ -432,7 +432,7 @@ func (mpcsp *mockProviderChannelStatusProvider) GetProviderChannel(accountantAdd
 	return mpcsp.channelToReturn, mpcsp.channelReturnError
 }
 
-func (mpcsp *mockProviderChannelStatusProvider) GetAccountantFee(accountantAddress common.Address) (uint16, error) {
+func (mpcsp *mockProviderChannelStatusProvider) GetHermesFee(accountantAddress common.Address) (uint16, error) {
 	return mpcsp.feeToReturn, mpcsp.feeError
 }
 
@@ -474,7 +474,7 @@ var mockID = identity.FromAddress("test")
 var mockProviderChannel = client.ProviderChannel{
 	Balance: big.NewInt(1000000000000),
 	Settled: big.NewInt(9000000),
-	Loan:    big.NewInt(12312323),
+	Stake:   big.NewInt(12312323),
 }
 
 type mockTransactor struct {
@@ -489,7 +489,7 @@ func (mt *mockTransactor) FetchSettleFees() (registry.FeesResponse, error) {
 	return mt.feesToReturn, mt.feesError
 }
 
-func (mt *mockTransactor) SettleAndRebalance(id string, promise crypto.Promise) error {
+func (mt *mockTransactor) SettleAndRebalance(id, providerid string, promise crypto.Promise) error {
 	return nil
 }
 

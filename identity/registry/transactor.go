@@ -123,6 +123,7 @@ type PromiseSettlementRequest struct {
 	TransactorFee uint64 `json:"fee"`
 	Preimage      string `json:"preimage"`
 	Signature     string `json:"signature"`
+	ProviderID    string `json:"providerID"`
 }
 
 // FetchRegistrationFees fetches current transactor registration fees
@@ -174,9 +175,10 @@ func (t *Transactor) TopUp(id string) error {
 }
 
 // SettleAndRebalance requests the transactor to settle and rebalance the given channel
-func (t *Transactor) SettleAndRebalance(accountantID string, promise pc.Promise) error {
+func (t *Transactor) SettleAndRebalance(accountantID, providerID string, promise pc.Promise) error {
 	payload := PromiseSettlementRequest{
 		AccountantID:  accountantID,
+		ProviderID:    providerID,
 		ChannelID:     hex.EncodeToString(promise.ChannelID),
 		Amount:        promise.Amount,
 		TransactorFee: promise.Fee,
@@ -260,7 +262,7 @@ func (t *Transactor) validateRegisterIdentityRequest(regReq IdentityRegistration
 func (t *Transactor) signRegistrationRequest(signer identity.Signer, regReq IdentityRegistrationRequest) ([]byte, error) {
 	req := registration.Request{
 		RegistryAddress: strings.ToLower(regReq.RegistryAddress),
-		AccountantID:    strings.ToLower(regReq.AccountantID),
+		HermesID:        strings.ToLower(regReq.AccountantID),
 		Stake:           regReq.Stake,
 		Fee:             regReq.Fee,
 		Beneficiary:     strings.ToLower(regReq.Beneficiary),
@@ -287,6 +289,7 @@ type SettleWithBeneficiaryRequest struct {
 	Beneficiary string `json:"beneficiary"`
 	Nonce       uint64 `json:"nonce"`
 	Signature   string `json:"signature"`
+	ProviderID  string `json:"providerID"`
 }
 
 // SettleWithBeneficiary instructs Transactor to set beneficiary on behalf of a client identified by 'id'
@@ -308,6 +311,7 @@ func (t *Transactor) SettleWithBeneficiary(id, beneficiary, accountantID string,
 		Beneficiary: signedReq.Beneficiary,
 		Nonce:       signedReq.Nonce,
 		Signature:   signedReq.Signature,
+		ProviderID:  id,
 	}
 
 	req, err := requests.NewPostRequest(t.endpointAddress, "identity/settle_with_beneficiary", payload)
@@ -399,4 +403,51 @@ func (t *Transactor) FetchRegistrationStatus(id string) (TransactorStatusRespons
 
 	err = t.httpClient.DoRequestAndParseResponse(req, &f)
 	return f, err
+}
+
+// SettleIntoStake requests the transactor to settle and transfer the balance to stake.
+func (t *Transactor) SettleIntoStake(accountantID, providerID string, promise pc.Promise) error {
+	payload := PromiseSettlementRequest{
+		AccountantID:  accountantID,
+		ChannelID:     hex.EncodeToString(promise.ChannelID),
+		Amount:        promise.Amount,
+		TransactorFee: promise.Fee,
+		Preimage:      hex.EncodeToString(promise.R),
+		Signature:     hex.EncodeToString(promise.Signature),
+		ProviderID:    providerID,
+	}
+
+	req, err := requests.NewPostRequest(t.endpointAddress, "identity/settle/into_stake", payload)
+	if err != nil {
+		return errors.Wrap(err, "failed to create settle into stake request")
+	}
+	return t.httpClient.DoRequest(req)
+}
+
+// DecreaseProviderStakeRequest represents all the parameters required for decreasing provider stake.
+type DecreaseProviderStakeRequest struct {
+	ChannelID     string `json:"channel_id,omitempty"`
+	Nonce         uint64 `json:"nonce,omitempty"`
+	HermesID      string `json:"hermes_id,omitempty"`
+	Amount        uint64 `json:"amount,omitempty"`
+	TransactorFee uint64 `json:"transactor_fee,omitempty"`
+	Signature     string `json:"signature,omitempty"`
+}
+
+// DecreaseStake requests the transactor to decrease stake.
+func (t *Transactor) DecreaseStake(dpsr pc.DecreaseProviderStakeRequest, hermesID string) error {
+	payload := DecreaseProviderStakeRequest{
+		ChannelID:     hex.EncodeToString(dpsr.ChannelID[:]),
+		Nonce:         dpsr.Nonce.Uint64(),
+		HermesID:      dpsr.HermesID.Hex(),
+		Amount:        dpsr.Amount.Uint64(),
+		TransactorFee: dpsr.TransactorFee.Uint64(),
+		Signature:     hex.EncodeToString(dpsr.Signature),
+	}
+
+	req, err := requests.NewPostRequest(t.endpointAddress, "/stake/decrease", payload)
+	if err != nil {
+		return errors.Wrap(err, "failed to create decrease stake request")
+	}
+	return t.httpClient.DoRequest(req)
 }

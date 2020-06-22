@@ -71,7 +71,7 @@ services:
       --mnemonic "amused glory pen avocado toilet dragon entry kitchen cliff retreat canyon danger"
 
   transactor:
-    image: mysteriumnetwork/transactor:0.3.0
+    image: mysteriumnetwork/transactor:v3-rc1
     environment:
       PORT: 8888
     expose:
@@ -79,6 +79,7 @@ services:
     depends_on:
       - ganache
       - mongodb
+      - redis
     command: >
       -settlemntFee 1000
       -mystSCAddress 0x4D1d104AbD4F4351a0c51bE1e9CA0750BbCa1665
@@ -91,6 +92,7 @@ services:
       -MongoPass transactor
       -MongoHost mongodb:27017
       -MongoReplSet ""
+      -redisAddress "redis:6379"
     volumes:
       - ./e2e/blockchain/keystore:/keystore
 

@@ -43,9 +43,9 @@ type settlementHistoryStorage interface {
 }
 
 type providerChannelStatusProvider interface {
-	SubscribeToPromiseSettledEvent(providerID, accountantID common.Address) (sink chan *bindings.AccountantImplementationPromiseSettled, cancel func(), err error)
+	SubscribeToPromiseSettledEvent(providerID, accountantID common.Address) (sink chan *bindings.HermesImplementationPromiseSettled, cancel func(), err error)
 	GetProviderChannel(accountantAddress common.Address, addressToCheck common.Address, pending bool) (client.ProviderChannel, error)
-	GetAccountantFee(accountantAddress common.Address) (uint16, error)
+	GetHermesFee(accountantAddress common.Address) (uint16, error)
 }
 
 type ks interface {
@@ -58,7 +58,7 @@ type registrationStatusProvider interface {
 
 type transactor interface {
 	FetchSettleFees() (registry.FeesResponse, error)
-	SettleAndRebalance(id string, promise crypto.Promise) error
+	SettleAndRebalance(id, providerID string, promise crypto.Promise) error
 	SettleWithBeneficiary(id, beneficiary, accountantID string, promise crypto.Promise) error
 }
 
@@ -126,7 +126,7 @@ func NewAccountantPromiseSettler(eventBus eventbus.EventBus, transactor transact
 
 // GetAccountantFee fetches the accountant fee.
 func (aps *accountantPromiseSettler) GetAccountantFee() (uint16, error) {
-	return aps.bc.GetAccountantFee(aps.config.AccountantAddress)
+	return aps.bc.GetHermesFee(aps.config.AccountantAddress)
 }
 
 // loadInitialState loads the initial state for the given identity. Inteded to be called on service start.
@@ -447,7 +447,7 @@ func (aps *accountantPromiseSettler) settle(p receivedPromise, beneficiary *comm
 	}()
 
 	var settleFunc = func() error {
-		return aps.transactor.SettleAndRebalance(aps.config.AccountantAddress.Hex(), p.promise)
+		return aps.transactor.SettleAndRebalance(aps.config.AccountantAddress.Hex(), p.provider.Address, p.promise)
 	}
 	if beneficiary != nil {
 		settleFunc = func() error {
