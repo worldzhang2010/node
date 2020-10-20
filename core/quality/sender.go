@@ -28,6 +28,7 @@ import (
 	"github.com/mysteriumnetwork/node/core/discovery"
 	"github.com/mysteriumnetwork/node/eventbus"
 	"github.com/mysteriumnetwork/node/identity"
+	"github.com/mysteriumnetwork/node/identity/registry"
 	"github.com/mysteriumnetwork/node/market"
 	sessionEvent "github.com/mysteriumnetwork/node/session/event"
 	pingpongEvent "github.com/mysteriumnetwork/node/session/pingpong/event"
@@ -41,6 +42,7 @@ const (
 	sessionTokensName   = "session_tokens"
 	sessionEventName    = "session_event"
 	traceEventName      = "trace_event"
+	registerIdentity    = "register_identity"
 	unlockEventName     = "unlock"
 	proposalEventName   = "proposal_event"
 	natMappingEventName = "nat_mapping"
@@ -107,6 +109,12 @@ type sessionTokensContext struct {
 	sessionContext
 }
 
+type registrationEvent struct {
+	Identity string
+	Status   string
+	Country  string
+}
+
 type sessionTraceContext struct {
 	Duration time.Duration
 	Stage    string
@@ -144,6 +152,9 @@ func (sender *Sender) Subscribe(bus eventbus.Subscriber) error {
 		return err
 	}
 	if err := bus.SubscribeAsync(trace.AppTopicTraceEvent, sender.sendTraceEvent); err != nil {
+		return err
+	}
+	if err := bus.SubscribeAsync(registry.AppTopicIdentityRegistration, sender.sendRegistrationEvent); err != nil {
 		return err
 	}
 
@@ -242,6 +253,14 @@ func (sender *Sender) sendUnlockEvent(id string) {
 // sendProposalEvent sends provider proposal event.
 func (sender *Sender) sendProposalEvent(p market.ServiceProposal) {
 	sender.sendEvent(proposalEventName, p)
+}
+
+func (sender *Sender) sendRegistrationEvent(r registry.AppEventIdentityRegistration) {
+	sender.sendEvent(registerIdentity, registrationEvent{
+		Identity: r.ID.Address,
+		Status:   r.Status.String(),
+		Country:  r.Country,
+	})
 }
 
 func (sender *Sender) sendTraceEvent(stage trace.Event) {

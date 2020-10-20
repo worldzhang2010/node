@@ -58,9 +58,28 @@ func mapEventToMetric(event Event) (string, *metrics.Event) {
 		return proposalEventToMetricsEvent(event.Context.(market.ServiceProposal), event.Application)
 	case traceEventName:
 		return traceEventToMetricsEvent(event.Context.(sessionTraceContext), event.Application)
+	case registerIdentity:
+		return identityRegistrationEvent(event.Context.(registrationEvent), event.Application)
 	}
 
 	return "", nil
+}
+
+func identityRegistrationEvent(data registrationEvent, info appInfo) (string, *metrics.Event) {
+	return data.Identity, &metrics.Event{
+		Metric: &metrics.Event_RegistrationPayload{
+			RegistrationPayload: &metrics.RegistrationPayload{
+				Version: &metrics.VersionPayload{
+					Version: info.Version,
+					Os:      info.OS,
+					Arch:    info.Arch,
+				},
+				Country:  data.Country,
+				Identity: data.Identity,
+				Status:   data.Status,
+			},
+		},
+	}
 }
 
 func identityUnlockToMetricsEvent(id string, info appInfo) (string, *metrics.Event) {
@@ -120,7 +139,7 @@ func sessionTokensToMetricsEvent(ctx sessionTokensContext) (string, *metrics.Eve
 		IsProvider: false,
 		Metric: &metrics.Event_SessionTokensPayload{
 			SessionTokensPayload: &metrics.SessionTokensPayload{
-				Tokens: ctx.Tokens.Text(10),
+				Tokens: ctx.Tokens.Uint64(),
 				Session: &metrics.SessionPayload{
 					Id:             ctx.ID,
 					ServiceType:    ctx.ServiceType,

@@ -209,6 +209,10 @@ func (di *Dependencies) Bootstrap(nodeOptions node.Options) error {
 
 	netutil.ClearStaleRoutes()
 
+	if err := di.bootstrapLocationComponents(nodeOptions); err != nil {
+		return err
+	}
+
 	if err := di.bootstrapNetworkComponents(nodeOptions); err != nil {
 		return err
 	}
@@ -216,9 +220,6 @@ func (di *Dependencies) Bootstrap(nodeOptions node.Options) error {
 	di.bootstrapIdentityComponents(nodeOptions)
 
 	if err := di.bootstrapDiscoveryComponents(nodeOptions.Discovery); err != nil {
-		return err
-	}
-	if err := di.bootstrapLocationComponents(nodeOptions); err != nil {
 		return err
 	}
 	if err := di.bootstrapAuthenticator(); err != nil {
@@ -646,8 +647,17 @@ func (di *Dependencies) bootstrapNetworkComponents(options node.Options) (err er
 
 	di.HermesURLGetter = pingpong.NewHermesURLGetter(di.BCHelper, common.HexToAddress(options.Transactor.RegistryAddress))
 
+	fn := func() string {
+		l, err := di.LocationResolver.DetectLocation()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to detect location")
+			return ""
+		}
+		return l.Country
+	}
+
 	registryStorage := registry.NewRegistrationStatusStorage(di.Storage)
-	if di.IdentityRegistry, err = identity_registry.NewIdentityRegistryContract(di.EtherClient, common.HexToAddress(options.Transactor.RegistryAddress), common.HexToAddress(options.Hermes.HermesID), registryStorage, di.EventBus); err != nil {
+	if di.IdentityRegistry, err = identity_registry.NewIdentityRegistryContract(di.EtherClient, common.HexToAddress(options.Transactor.RegistryAddress), common.HexToAddress(options.Hermes.HermesID), registryStorage, di.EventBus, fn); err != nil {
 		return err
 	}
 

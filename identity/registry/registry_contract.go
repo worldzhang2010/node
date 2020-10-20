@@ -40,19 +40,23 @@ type registryStorage interface {
 	GetAll() ([]StoredRegistrationStatus, error)
 }
 
+type getLocation func() string
+
 type contractRegistry struct {
 	hermesAddress   common.Address
 	storage         registryStorage
-	stop            chan struct{}
-	once            sync.Once
 	publisher       eventbus.Publisher
-	lock            sync.Mutex
 	ethC            *paymentClient.ReconnectableEthClient
 	registryAddress common.Address
+	getLocation     getLocation
+
+	stop chan struct{}
+	lock sync.Mutex
+	once sync.Once
 }
 
 // NewIdentityRegistryContract creates identity registry service which uses blockchain for information
-func NewIdentityRegistryContract(ethClient *paymentClient.ReconnectableEthClient, registryAddress, hermesAddress common.Address, registryStorage registryStorage, publisher eventbus.Publisher) (*contractRegistry, error) {
+func NewIdentityRegistryContract(ethClient *paymentClient.ReconnectableEthClient, registryAddress, hermesAddress common.Address, registryStorage registryStorage, publisher eventbus.Publisher, gl getLocation) (*contractRegistry, error) {
 	log.Info().Msgf("Using registryAddress %v hermesAddress %v", registryAddress.Hex(), hermesAddress.Hex())
 	return &contractRegistry{
 		hermesAddress:   hermesAddress,
@@ -61,6 +65,7 @@ func NewIdentityRegistryContract(ethClient *paymentClient.ReconnectableEthClient
 		publisher:       publisher,
 		ethC:            ethClient,
 		registryAddress: registryAddress,
+		getLocation:     gl,
 	}, nil
 }
 
@@ -74,6 +79,7 @@ func (registry *contractRegistry) Subscribe(eb eventbus.Subscriber) error {
 	if err != nil {
 		return err
 	}
+
 	return eb.Subscribe(AppTopicTransactorRegistration, registry.handleRegistrationEvent)
 }
 
@@ -140,8 +146,9 @@ func (registry *contractRegistry) handleRegistrationEvent(ev IdentityRegistratio
 	ID := identity.FromAddress(ev.Identity)
 
 	go registry.publisher.Publish(AppTopicIdentityRegistration, AppEventIdentityRegistration{
-		ID:     ID,
-		Status: s,
+		ID:      ID,
+		Status:  s,
+		Country: registry.getLocation(),
 	})
 	err = registry.storage.Store(StoredRegistrationStatus{
 		Identity:           ID,
@@ -180,8 +187,9 @@ func (registry *contractRegistry) subscribeToRegistrationEvent(identity identity
 		subscription, err := filterer.WatchRegisteredIdentity(filterOps, sink, userIdentities, hermesIdentities)
 		if err != nil {
 			registry.publisher.Publish(AppTopicIdentityRegistration, AppEventIdentityRegistration{
-				ID:     identity,
-				Status: RegistrationError,
+				ID:      identity,
+				Status:  RegistrationError,
+				Country: registry.getLocation(),
 			})
 			log.Error().Err(err).Msg("Could not register to identity events")
 
@@ -210,8 +218,9 @@ func (registry *contractRegistry) subscribeToRegistrationEvent(identity identity
 
 			log.Debug().Msgf("Sending registration success event for %v", identity)
 			registry.publisher.Publish(AppTopicIdentityRegistration, AppEventIdentityRegistration{
-				ID:     identity,
-				Status: status,
+				ID:      identity,
+				Status:  status,
+				Country: registry.getLocation(),
 			})
 
 			err = registry.storage.Store(StoredRegistrationStatus{
@@ -228,8 +237,9 @@ func (registry *contractRegistry) subscribeToRegistrationEvent(identity identity
 
 			log.Error().Err(err).Msg("Subscription error")
 			registry.publisher.Publish(AppTopicIdentityRegistration, AppEventIdentityRegistration{
-				ID:     identity,
-				Status: RegistrationError,
+				ID:      identity,
+				Status:  RegistrationError,
+				Country: registry.getLocation(),
 			})
 			updateErr := registry.storage.Store(StoredRegistrationStatus{
 				Identity:           identity,
