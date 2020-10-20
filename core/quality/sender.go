@@ -53,11 +53,14 @@ type Transport interface {
 	SendEvent(Event) error
 }
 
+type getRunnerCountry func() string
+
 // NewSender creates metrics sender with appropriate transport
-func NewSender(transport Transport, appVersion string) *Sender {
+func NewSender(transport Transport, appVersion string, rc getRunnerCountry) *Sender {
 	return &Sender{
-		Transport:  transport,
-		AppVersion: appVersion,
+		Transport:     transport,
+		AppVersion:    appVersion,
+		runnerCountry: rc,
 
 		sessionsActive: make(map[string]sessionContext),
 	}
@@ -68,6 +71,7 @@ type Sender struct {
 	Transport  Transport
 	AppVersion string
 
+	runnerCountry  getRunnerCountry
 	sessionsMu     sync.RWMutex
 	sessionsActive map[string]sessionContext
 }
@@ -259,7 +263,7 @@ func (sender *Sender) sendRegistrationEvent(r registry.AppEventIdentityRegistrat
 	sender.sendEvent(registerIdentity, registrationEvent{
 		Identity: r.ID.Address,
 		Status:   r.Status.String(),
-		Country:  r.Country,
+		Country:  sender.runnerCountry(),
 	})
 }
 

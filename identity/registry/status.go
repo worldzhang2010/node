@@ -80,7 +80,6 @@ const AppTopicIdentityRegistration = "registration_event_topic"
 
 // AppEventIdentityRegistration represents the registration event payload.
 type AppEventIdentityRegistration struct {
-	ID      identity.Identity
-	Status  RegistrationStatus
-	Country string
+	ID     identity.Identity
+	Status RegistrationStatus
 }

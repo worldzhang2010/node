@@ -113,3 +113,16 @@ func (c *Cache) HandleNodeEvent(se nodevent.Payload) {
 		log.Debug().Msgf("original location detected: %s (%s)", c.origin.Country, c.origin.NodeType)
 	}
 }
+
+// RunnerCountryFn returns a func that can be used to get
+// country of the runner.
+func (c *Cache) RunnerCountryFn() func() string {
+	return func() string {
+		l, err := c.DetectLocation()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to detect location")
+			return ""
+		}
+		return l.Country
+	}
+}
